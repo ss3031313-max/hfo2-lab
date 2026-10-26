@@ -11,16 +11,16 @@ const intake=fs.readFileSync(path.join(root,'src/intake.js'),'utf8');
 const plain=value=>JSON.parse(JSON.stringify(value));
 function setup({confirm=true}={}){
  const elements=new Map(),events=[],prompts=[],listeners=new Map();
- const node=id=>{if(!elements.has(id))elements.set(id,{value:'',files:[],children:[],textContent:'',hidden:false,disabled:false,checked:false,replaceChildren(){this.children=[];}});return elements.get(id);};
+ const node=id=>{if(!elements.has(id))elements.set(id,{value:'',files:[],children:[],textContent:'',hidden:false,disabled:false,checked:false,classList:{add(){},remove(){},toggle(){}},replaceChildren(){this.children=[];}});return elements.get(id);};
  const document={getElementById:node,querySelector:()=>null,querySelectorAll:()=>[],activeElement:null,dispatchEvent:event=>{events.push(event.type);for(const cb of listeners.get(event.type)||[])cb(event);},addEventListener:(type,cb)=>listeners.set(type,[...(listeners.get(type)||[]),cb])};
  const context=vm.createContext({console,document,structuredClone,Event,CustomEvent:class{constructor(type){this.type=type;}},confirm:message=>{prompts.push(message);return confirm;}});
  vm.runInContext('globalThis.window=globalThis',context);
  for(const id of ['om-math','workflow-math'])vm.runInContext(template.match(new RegExp('<script id="'+id+'">([\\s\\S]*?)</script>'))[1],context);
  const coreCode=template.slice(template.indexOf('function setThicknessData('),template.indexOf('async function importCoreState('));
- vm.runInContext(`let joined=[],selectedSample='',selected='OM-A',records=[{id:'OM-A',filename:'A.png'},{id:'OM-B',filename:'B.png'}],combinedScreening=false,metaFilename='meta',thickFilename='thickness';
+ vm.runInContext(`let joined=[],selectedSample='',selected='OM-A',records=[{id:'OM-A',filename:'A.png'},{id:'OM-B',filename:'B.png'}],combinedScreening=false,joinWarnings=[],metaFilename='meta',thickFilename='thickness';
  const byId=id=>document.getElementById(id);function selectedRecord(){return joined.find(s=>s.id===selectedSample);}function render(){document.dispatchEvent(new Event('wf-rendered'));}
  ${coreCode}
- globalThis.Hfo2Bridge={getSamples:()=>structuredClone(joined),getSelectedSampleId:()=>selectedSample,listImages:()=>structuredClone(records),getImage:id=>records.find(s=>s.id===id),isCombinedScreening:()=>combinedScreening,getRule:()=>({target:15,tolerance:2,cvLimit:10}),setThicknessData,exportState:exportCoreState,navigate:()=>{},applyCSVs:(meta,thickness)=>{joined=Hfo2WorkflowMath.join(meta,thickness,records.map(r=>r.id)).samples;render();}};
+ globalThis.Hfo2Bridge={getSamples:()=>structuredClone(joined),getSelectedSampleId:()=>selectedSample,listImages:()=>structuredClone(records),getImage:id=>records.find(s=>s.id===id),isCombinedScreening:()=>combinedScreening,getRule:()=>({target:15,tolerance:2,cvLimit:10}),setThicknessData,setSampleRecords,exportState:exportCoreState,navigate:()=>{},applyCSVs:(meta,thickness)=>{joined=Hfo2WorkflowMath.join(meta,thickness,records.map(r=>r.id)).samples;render();}};
  globalThis.TestCore={set:(samples,id)=>{joined=structuredClone(samples);selectedSample=id||samples[0]?.id||'';},select:id=>{selectedSample=id;render();},edit:(id,values)=>{const s=joined.find(s=>s.id===id);s.points=values.map((value,i)=>({position:'P'+i,value}));s.stats=OMDemoMath.thickness(values);render();}};`,context);
  const prefix=intake.slice(0,intake.indexOf('const css='));
  const stateFns=intake.slice(intake.indexOf('function exportState('),intake.indexOf('function readForm('));
@@ -35,8 +35,8 @@ function setup({confirm=true}={}){
  ${stateFns}\n${runFn}
  document.addEventListener('wf-rendered',()=>{if(!internal&&!dirty){queue=B.getSamples();renderQueue();}renderAnalysis();});
  ${intake.split('\n').find(line=>line.startsWith("document.addEventListener('hfo2-import-busy'"))}
- globalThis.Hfo2Intake={deleteThickness,undoThicknessDeletion,exportState,importState,csvFor,rowsFor,setQueue,runAnalysis,getQueue:()=>clone(queue),updateThicknessControls};
- globalThis.TestIntake={init:(samples,pending=false,oldUndo=null)=>{queue=clone(samples);dirty=pending;undoQueue=clone(oldUndo);thicknessUndo=null;thicknessMessage='';updateThicknessControls();},isDirty:()=>dirty};})();`,context);
+ globalThis.Hfo2Intake={deleteSamples,undoSampleDeletion,deleteThickness,undoThicknessDeletion,exportState,importState,csvFor,rowsFor,setQueue,runAnalysis,getQueue:()=>clone(queue),updateThicknessControls};
+ globalThis.TestIntake={init:(samples,pending=false,oldUndo=null)=>{queue=clone(samples);dirty=pending;undoQueue=clone(oldUndo);thicknessUndo=null;thicknessMessage='';sampleUndo=null;sampleMessage='';updateThicknessControls();},isDirty:()=>dirty};})();`,context);
  const sample=(id,values=[14.8,15,15.2],extra={})=>({id,image_id:id==='A'?'OM-A':'OM-B',concentration_M:.2,coats:1,rpm:3000,spin_time_s:30,anneal_temp_C:550,anneal_time_min:120,data_source:'REAL_MEASUREMENT',points:values.map((value,i)=>({position:'P'+i,value})),stats:values.length?plain(context.OMDemoMath.thickness(values)):null,...extra});
  const init=(samples,queued=samples,{dirty=false,undo=null}={})=>{context.TestCore.set(samples);context.TestIntake.init(queued,dirty,undo);};
  return {context,I:context.Hfo2Intake,B:context.Hfo2Bridge,node,events,prompts,sample,init};
@@ -124,4 +124,49 @@ test('async workbook/OM work blocks deletion and undo, then reenables controls w
  // The entry guard also protects a stale enabled button if no render/event has happened yet.
  t.context.TestBusy.silent(true);assert.equal(t.node('intakeDeleteAllThickness').disabled,false);assert.equal(t.I.deleteThickness('all'),false);assert.equal(t.I.undoThicknessDeletion(),false);assert.equal(JSON.stringify([t.B.exportState(),t.I.exportState()]),before);
  t.context.TestBusy.set(false);assert.equal(t.I.undoThicknessDeletion(),true);assert.deepEqual(plain(t.B.getSamples()),[a,b]);
+});
+
+
+test('sample deletion removes empty pending rows from registration and analysis, and exports stay empty',()=>{
+ const t=setup();t.init([t.sample('A',[]),t.sample('B',[])]);
+ assert.equal(t.node('intakeDeleteAllThickness').disabled,true);
+ assert.equal(t.node('intakeDeleteAllSamples').disabled,false);
+ assert.equal(t.I.deleteSamples('all'),true);
+ assert.deepEqual(plain(t.B.getSamples()),[]);assert.deepEqual(plain(t.I.getQueue()),[]);
+ assert.equal(t.context.TestIntake.isDirty(),false);
+ assert.equal(t.node('intakeDeleteAllSamples').disabled,true);assert.equal(t.node('intakeUndoSamples').disabled,false);
+ assert.equal(t.B.getSelectedSampleId(),'');assert.equal(t.node('wfEditValues').value,'');
+ const saved=t.B.exportState();assert.equal(t.context.Hfo2WorkflowMath.join(saved.metadataCsv,saved.thicknessCsv,['OM-A','OM-B'],true).samples.length,0);
+ assert.equal(t.B.listImages().length,2);assert.match(t.prompts[0],/전체 2개 시편/);
+ assert.equal(t.I.undoSampleDeletion(),true);assert.equal(t.B.getSamples().length,2);assert.equal(t.I.getQueue().length,2);
+});
+test('selected sample deletion preserves other analyzed records, pending edits and image records exactly',()=>{
+ const t=setup(),a=t.sample('A'),b=t.sample('B',[],{data_source:'SYNTHETIC',editText:'bad',editError:'invalid'}),c=t.sample('C');
+ t.init([a,b],[{...a,coats:4},c],{dirty:true});const images=plain(t.B.listImages());
+ t.I.deleteSamples('selected');assert.deepEqual(plain(t.B.getSamples()),[b]);assert.deepEqual(plain(t.I.getQueue()),[c]);
+ assert.equal(t.context.TestIntake.isDirty(),true);assert.deepEqual(plain(t.B.listImages()),images);
+ t.context.TestCore.select('B');assert.equal(t.I.undoSampleDeletion(),true);
+ assert.deepEqual(plain(t.B.getSamples()),[a,b]);assert.deepEqual(plain(t.I.getQueue()),[{...a,coats:4},c]);
+ assert.equal(t.context.TestIntake.isDirty(),true);
+});
+test('all-sample deletion includes draft-only samples and clears the pending-change state',()=>{
+ const t=setup(),a=t.sample('A'),b=t.sample('B'),c=t.sample('C');t.init([a,b],[c],{dirty:true});
+ t.I.deleteSamples('all');assert.match(t.prompts[0],/전체 3개 시편/);assert.equal(t.context.TestIntake.isDirty(),false);
+ assert.equal(t.I.getQueue().length,0);assert.equal(t.B.getSamples().length,0);
+ assert.equal(t.I.undoSampleDeletion(),true);assert.deepEqual(plain(t.I.getQueue()),[c]);assert.deepEqual(plain(t.B.getSamples()),[a,b]);
+});
+test('cancelling sample deletion leaves all records and undo state untouched',()=>{
+ const t=setup({confirm:false});t.init([t.sample('A',[])]);const before=JSON.stringify([t.B.exportState(),t.I.exportState()]);
+ assert.equal(t.I.deleteSamples('all'),false);assert.equal(JSON.stringify([t.B.exportState(),t.I.exportState()]),before);assert.equal(t.events.length,0);
+});
+test('sample undo expires after new registration and does not overwrite new input',()=>{
+ const t=setup();t.init([t.sample('A')]);t.I.deleteSamples('all');t.I.setQueue([t.sample('B')]);
+ assert.equal(t.node('intakeUndoSamples').disabled,true);assert.equal(t.I.undoSampleDeletion(),false);assert.deepEqual(plain(t.I.getQueue().map(s=>s.id)),['B']);
+});
+test('sample deletion and undo are blocked while importing or analyzing',()=>{
+ const t=setup();t.init([t.sample('A')]);t.context.Hfo2QuickImport={isBusy:()=>true};
+ assert.equal(t.I.deleteSamples('all'),false);assert.equal(t.B.getSamples().length,1);assert.equal(t.prompts.length,0);
+ t.context.Hfo2QuickImport={isBusy:()=>false};t.I.deleteSamples('all');t.context.Hfo2QuickImport={isBusy:()=>true};
+ assert.equal(t.I.undoSampleDeletion(),false);assert.equal(t.node('intakeUndoSamples').disabled,true);
+ t.context.Hfo2QuickImport={isBusy:()=>false};assert.equal(t.I.undoSampleDeletion(),true);
 });
