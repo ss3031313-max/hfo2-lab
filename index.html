@@ -325,6 +325,16 @@ function setThicknessData(samples){
  render();
 }
 
+// Replace only sample records; registered OM images and their reviews are independent.
+function setSampleRecords(samples){
+ joined=structuredClone(samples);
+ if(!joined.some(sample=>sample.id===selectedSample))selectedSample=joined[0]?.id||'';
+ const current=selectedRecord();byId('wfEditValues').value=current?(current.editText??current.points.map(point=>point.value).join(',')):'';
+ joinWarnings=[];byId('wfInputWarning').textContent='';byId('wfInputWarning').classList.add('hidden');
+ byId('wfInputStatus').textContent=joined.length?'시편 목록 갱신 · '+joined.length+'개':'등록된 시편 없음';
+ render();
+}
+
 function exportCoreState(){
  const csv=window.Hfo2Intake.csvFor(joined);
  return {version:1,images:records.map(r=>({...r})),metadataCsv:csv.meta,thicknessCsv:csv.thickness,
@@ -374,7 +384,7 @@ window.Hfo2Bridge={
  listImages:()=>records.map(r=>({...r})),getImage:id=>records.find(r=>r.id===id),getPixels:id=>pixels.get(id),
  getSelectedImageId:()=>selected,getSelectedSampleId:()=>selectedSample,
  selectImage:id=>{if(!records.some(r=>r.id===id))throw new Error('이미지를 찾을 수 없습니다.');byId('rpmFilter').value='all';byId('magnificationFilter').value='all';selectImage(id);},
- setThicknessData,
+ setThicknessData,setSampleRecords,
  getROI:()=>roiValid?({...roi}):null,getSamples:()=>structuredClone(joined),getRule:currentRule,
  applyCSVs:(meta,thick,mn='직접 등록',tn='직접 등록')=>setData(meta,thick,mn,tn),loadDemo,
  clearSamples:()=>{combinedScreening=false;joined=[];joinWarnings=[];selectedSample='';byId('wfOnlyReview').checked=false;byId('wfInputStatus').textContent='샘플을 등록한 뒤 전체 분석을 실행하세요.';byId('wfInputWarning').textContent='';byId('wfInputWarning').classList.add('hidden');errorBox('wfInputError','');render();},
@@ -395,7 +405,7 @@ loadDemo();
 <script id="app-shell">
 (function(){'use strict';
 const el=id=>document.getElementById(id), shell=document.createElement('div');shell.className='app-shell';
-shell.innerHTML=`<aside class="app-sidebar"><div class="app-brand"><span class="app-mark">Hf</span><div>HfO₂ Lab<small>FILM ANALYSIS</small></div></div><div class="app-project"><small>PROJECT</small><strong>HfO₂ 박막 분석</strong></div><nav class="app-nav" aria-label="분석 화면"><button data-page="intake"><span class="nav-icon">＋</span>등록</button><button data-page="data"><span class="nav-icon">▤</span>CSV 입력</button><button data-page="samples" aria-current="page"><span class="nav-icon">◫</span>두께 분석</button><button data-page="om"><span class="nav-icon">▧</span>OM 분석</button><button data-page="compare"><span class="nav-icon">▥</span>조건 비교</button></nav><div class="app-side-foot"><span class="ui-online-dot"></span> 오프라인 분석<br><span>HfO₂ Lab · v0.5.3</span></div></aside><div class="app-main"><header class="app-header"><div><h1 id="appPageTitle">시편분석</h1><p id="appPageSubtitle">평균 · CV · 판정</p></div><div class="app-header-right"><span class="app-source-status" id="appDatasetStatus"></span><button id="appSourceInfo" type="button">자료 정보</button><div id="appPrintSlot"></div></div></header><main class="app-workspace"><section class="app-page" id="page-intake" hidden></section><section class="app-page" id="page-data" hidden><div class="app-page-title"><div><h2>CSV 일괄 등록</h2><p>공정조건 · 위치별 두께 · Sample ID 연결</p></div><span class="pill">CSV · UTF-8</span></div><div class="app-card" id="appDataCard"><div class="app-connect-strip"><strong>공정조건 · 이미지 ID</strong><b>→</b><span>Sample ID 일치</span><b>←</b><strong>위치별 두께</strong></div><div class="app-input-format-note"><strong>CSV 양식은 이 화면에 첨부</strong><p>공정조건 CSV와 두께 CSV를 각각 작성한 뒤 아래 ‘CSV 파일 연결’에서 첨부하세요. 등록 화면의 측정 엑셀은 ‘공정조건’·‘두께’ 시트가 있는 .xlsx 파일을 사용합니다.</p><button type="button" data-goto="intake">엑셀 등록으로</button></div></div><div class="app-card" id="appMethodCard"><h3>분석 안내</h3><p class="small quiet">실제 OM 이미지의 원본 조건은 별도로 보존됩니다. 입력한 공정조건은 원본 이미지 정보를 덮어쓰지 않습니다.</p></div></section><section class="app-page" id="page-samples"><div class="app-page-title"><div><h2 id="appSamplesTitle">두께 분석</h2><p id="appSamplesSubtitle">평균 두께 · 위치별 편차</p></div><span class="pill" id="appSampleCount"></span></div></section><section class="app-page" id="page-om" hidden><div class="app-page-title"><div><h2>OM 분석</h2><p>기준 영역 확인 · 광학적 차이 검토</p></div><span class="pill">원본 이미지 · ROI 분석</span></div></section><section class="app-page" id="page-compare" hidden><div class="app-page-title"><div><h2>조건 비교</h2><p>농도 · 코팅 · 회전수 · 시간 · 어닐링</p></div><button id="appCompareExport">조건별 비교 CSV</button></div><div class="app-card" id="appCompareCard"></div></section></main></div>`;
+shell.innerHTML=`<aside class="app-sidebar"><div class="app-brand"><span class="app-mark">Hf</span><div>HfO₂ Lab<small>FILM ANALYSIS</small></div></div><div class="app-project"><small>PROJECT</small><strong>HfO₂ 박막 분석</strong></div><nav class="app-nav" aria-label="분석 화면"><button data-page="intake"><span class="nav-icon">＋</span>등록</button><button data-page="data"><span class="nav-icon">▤</span>CSV 입력</button><button data-page="samples" aria-current="page"><span class="nav-icon">◫</span>두께 분석</button><button data-page="om"><span class="nav-icon">▧</span>OM 분석</button><button data-page="compare"><span class="nav-icon">▥</span>조건 비교</button></nav><div class="app-side-foot"><span class="ui-online-dot"></span> 오프라인 분석<br><span>HfO₂ Lab · v0.5.4</span></div></aside><div class="app-main"><header class="app-header"><div><h1 id="appPageTitle">시편분석</h1><p id="appPageSubtitle">평균 · CV · 판정</p></div><div class="app-header-right"><span class="app-source-status" id="appDatasetStatus"></span><button id="appSourceInfo" type="button">자료 정보</button><div id="appPrintSlot"></div></div></header><main class="app-workspace"><section class="app-page" id="page-intake" hidden></section><section class="app-page" id="page-data" hidden><div class="app-page-title"><div><h2>CSV 일괄 등록</h2><p>공정조건 · 위치별 두께 · Sample ID 연결</p></div><span class="pill">CSV · UTF-8</span></div><div class="app-card" id="appDataCard"><div class="app-connect-strip"><strong>공정조건 · 이미지 ID</strong><b>→</b><span>Sample ID 일치</span><b>←</b><strong>위치별 두께</strong></div><div class="app-input-format-note"><strong>CSV 양식은 이 화면에 첨부</strong><p>공정조건 CSV와 두께 CSV를 각각 작성한 뒤 아래 ‘CSV 파일 연결’에서 첨부하세요. 등록 화면의 측정값은 ‘공정조건’·‘두께’ 시트가 있는 .xlsx 파일을 사용합니다.</p><button type="button" data-goto="intake">엑셀 등록으로</button></div></div><div class="app-card" id="appMethodCard"><h3>분석 안내</h3><p class="small quiet">실제 OM 이미지의 원본 조건은 별도로 보존됩니다. 입력한 공정조건은 원본 이미지 정보를 덮어쓰지 않습니다.</p></div></section><section class="app-page" id="page-samples"><div class="app-page-title"><div><h2 id="appSamplesTitle">두께 분석</h2><p id="appSamplesSubtitle">평균 두께 · 위치별 편차</p></div><span class="pill" id="appSampleCount"></span></div></section><section class="app-page" id="page-om" hidden><div class="app-page-title"><div><h2>OM 분석</h2><p>기준 영역 확인 · 광학적 차이 검토</p></div><span class="pill">원본 이미지 · ROI 분석</span></div></section><section class="app-page" id="page-compare" hidden><div class="app-page-title"><div><h2>조건 비교</h2><p>농도 · 코팅 · 회전수 · 시간 · 어닐링</p></div><button id="appCompareExport">조건별 비교 CSV</button></div><div class="app-card" id="appCompareCard"></div></section></main></div>`;
 document.body.appendChild(shell);
 const original=document.querySelector('.wrap'), roleDetails=el('wfRoot').querySelector('.wf-panel > details');
 el('appDataCard').append(el('wfSource'),el('wfInputs'));if(roleDetails)el('appMethodCard').append(roleDetails);
@@ -436,6 +446,7 @@ const FIELDS=['concentration_M','coats','rpm','spin_time_s','anneal_temp_C','ann
 const FORM_FIELDS={sample_id:'intakeSampleId',data_source:'intakeSource',concentration_M:'intakeConcentration',coats:'intakeCoats',rpm:'intakeRpm',spin_time_s:'intakeSpinTime',anneal_temp_C:'intakeAnnealTemp',anneal_time_min:'intakeAnnealTime',image_id:'intakeImage'};
 let queue=[],undoQueue=null,dirty=false,internal=false,busy=false,previewUrl=null,activePage='intake',pendingFileDraft=false;
 let thicknessUndo=null,thicknessMessage='';
+let sampleUndo=null,sampleMessage='';
 const cell=v=>{const s=String(v??'');return /[",\r\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s;};
 function rowsFor(samples){return {meta:[MH,...samples.map(s=>[s.id,s.image_id,...FIELDS.map(f=>s[f]),s.data_source])],thickness:[TH,...samples.flatMap(s=>(s.points||[]).map(p=>[s.id,p.position,p.value,s.data_source]))]};}
 function csvFor(samples){const r=rowsFor(samples),csv=a=>a.map(row=>row.map(cell).join(',')).join('\n')+'\n';return {meta:csv(r.meta),thickness:csv(r.thickness)};}
@@ -457,6 +468,7 @@ function thicknessDeletionScope(scope){
  return {ids,analyzed,registered:summarize(queue),results:summarize(analyzed)};
 }
 function updateThicknessControls(){
+ updateSampleControls();
  const controls=$('intakeThicknessTools');if(!controls)return;
  if(thicknessUndo&&thicknessUndo.after!==thicknessSignature()){thicknessUndo=null;thicknessMessage='';}
  const selected=B.getSelectedSampleId?.(),one=thicknessDeletionScope('selected'),all=thicknessDeletionScope('all'),blocked=thicknessActionBusy();
@@ -488,6 +500,42 @@ function undoThicknessDeletion(){
  internal=true;try{B.setThicknessData(saved.analyzed);}finally{internal=false;}
  thicknessMessage='직전 두께 삭제 복구 완료';
  renderQueue();renderAnalysis();emitIntakeChanged();return true;
+}
+// A sample can exist without thickness values. Delete its identity from both stores.
+function sampleDeletionScope(scope){
+ if(scope!=='selected'&&scope!=='all')throw new Error('시편 삭제 범위를 확인하세요.');
+ const analyzed=B.getSamples(),selected=B.getSelectedSampleId?.();
+ return {analyzed,ids:[...new Set([...queue,...analyzed].filter(s=>scope==='all'||s.id===selected).map(s=>s.id))]};
+}
+function updateSampleControls(){
+ if(!$('intakeSampleTools'))return;
+ if(sampleUndo&&sampleUndo.after!==thicknessSignature()){sampleUndo=null;sampleMessage='';}
+ const blocked=thicknessActionBusy(),selected=B.getSelectedSampleId?.();
+ $('intakeDeleteSelectedSample').disabled=blocked||!sampleDeletionScope('selected').ids.length;
+ $('intakeDeleteAllSamples').disabled=blocked||!sampleDeletionScope('all').ids.length;
+ $('intakeUndoSamples').disabled=blocked||!sampleUndo;
+ $('intakeSampleSelection').textContent=selected?'선택 시편 · '+selected:'표에서 시편 선택';
+ $('intakeSampleStatus').textContent=sampleMessage;
+}
+function deleteSamples(scope){
+ if(thicknessActionBusy()){updateSampleControls();return false;}
+ const target=sampleDeletionScope(scope);if(!target.ids.length)return false;
+ const heading=scope==='selected'?'선택 시편 '+target.ids[0]:'전체 '+target.ids.length+'개 시편';
+ if(!window.confirm(heading+'을 삭제할까요?\n\n등록 목록, 공정조건, 두께값과 분석·비교 결과에서 제거합니다.\nOM 사진과 사진별 검토 결과는 유지됩니다.\n새로고침하거나 시편 데이터를 변경하기 전에는 시편 삭제 복구가 가능합니다.'))return false;
+ const before={queue:clone(queue),analyzed:target.analyzed,dirty};
+ sampleUndo=null;thicknessUndo=null;thicknessMessage='';undoQueue=null;
+ queue=queue.filter(s=>!target.ids.includes(s.id));
+ if(!queue.length&&!target.analyzed.some(s=>!target.ids.includes(s.id)))dirty=false;
+ internal=true;try{B.setSampleRecords(target.analyzed.filter(s=>!target.ids.includes(s.id)));}finally{internal=false;}
+ sampleUndo={...before,after:thicknessSignature()};sampleMessage=heading+' 삭제 완료 · OM 사진 유지';
+ renderQueue();renderAnalysis();emitIntakeChanged();return true;
+}
+function undoSampleDeletion(){
+ if(thicknessActionBusy()){updateSampleControls();return false;}
+ if(!sampleUndo||sampleUndo.after!==thicknessSignature()){sampleUndo=null;updateSampleControls();return false;}
+ const saved=sampleUndo;sampleUndo=null;queue=clone(saved.queue);dirty=saved.dirty;
+ internal=true;try{B.setSampleRecords(saved.analyzed);}finally{internal=false;}
+ sampleMessage='직전 시편 삭제 복구 완료';renderQueue();renderAnalysis();emitIntakeChanged();return true;
 }
 // The comparison editor keeps an unapplied draft separate from the authoritative rules.
 const CRITERIA_FIELDS=[['target','intakeCriteriaTarget','목표 평균 두께 (nm)','0.001'],['tolerance','intakeCriteriaTolerance','평균 허용차 (±nm)','0'],['cvLimit','intakeCriteriaCV','두께 CV 상한 (%)','0'],['areaLimit','intakeCriteriaArea','OM 얼룩 의심 면적 상한 (%)','0'],['particleDensityLimit','intakeCriteriaDensity','검출 영역 밀도 상한 (개/1만 px)','0']];
@@ -553,7 +601,7 @@ workflowSteps.id='appWorkflowSteps';
 const workspace=document.querySelector('.app-workspace');
 workspace.insertBefore(workflowSteps,workspace.firstChild);
 const summary=document.createElement('section');summary.id='intakeAnalysisSummary';summary.className='intake-summary';
-summary.innerHTML='<div id="intakeSummaryBody"></div><div id="intakeThicknessTools" class="intake-thickness-tools"><strong>두께 데이터 관리</strong><div id="intakeThicknessSelection" class="intake-thickness-selection">표에서 시편 선택</div><div class="intake-thickness-actions"><button type="button" id="intakeDeleteSelectedThickness" data-delete-thickness="selected" disabled>선택 두께 삭제</button><button type="button" id="intakeDeleteAllThickness" data-delete-thickness="all" disabled>전체 두께 삭제</button><button type="button" id="intakeUndoThickness" disabled>삭제 복구</button></div><p>공정조건 · OM 사진 · 검토 결과 유지</p><p id="intakeThicknessStatus" role="status" aria-live="polite"></p></div><div class="intake-links"><button data-intake-navigate="intake">샘플 등록</button><button id="intakeShowReview">기준 초과 필터</button><button id="intakeOpenSurface" data-intake-navigate="om">OM 검토</button></div><p id="intakeSummaryNotice" class="intake-warning" role="status" hidden></p>';
+summary.innerHTML='<div id="intakeSummaryBody"></div><div id="intakeSampleTools" class="intake-thickness-tools"><strong>시편 관리</strong><div id="intakeSampleSelection" class="intake-thickness-selection">표에서 시편 선택</div><div class="intake-thickness-actions"><button type="button" id="intakeDeleteSelectedSample" disabled>선택 시편 삭제</button><button type="button" id="intakeDeleteAllSamples" disabled>전체 시편 삭제</button><button type="button" id="intakeUndoSamples" disabled>시편 삭제 복구</button></div><p>등록 목록 · 공정조건 · 두께 · 분석 결과 삭제 / OM 사진 유지</p><p id="intakeSampleStatus" role="status" aria-live="polite"></p></div><div id="intakeThicknessTools" class="intake-thickness-tools"><strong>두께값만 삭제</strong><div id="intakeThicknessSelection" class="intake-thickness-selection">표에서 시편 선택</div><div class="intake-thickness-actions"><button type="button" id="intakeDeleteSelectedThickness" data-delete-thickness="selected" disabled>선택 두께 삭제</button><button type="button" id="intakeDeleteAllThickness" data-delete-thickness="all" disabled>전체 두께 삭제</button><button type="button" id="intakeUndoThickness" disabled>삭제 복구</button></div><p>시편 등록 · 공정조건 · OM 사진 유지 · 두께가 없으면 판정 대기로 표시</p><p id="intakeThicknessStatus" role="status" aria-live="polite"></p></div><div class="intake-links"><button data-intake-navigate="intake">샘플 등록</button><button id="intakeShowReview">기준 초과 필터</button><button id="intakeOpenSurface" data-intake-navigate="om">OM 검토</button></div><p id="intakeSummaryNotice" class="intake-warning" role="status" hidden></p>';
 $('page-samples').insertBefore(summary,$('wfScreen'));
 const summaryBody=$('intakeSummaryBody');
 const pendingSamples=document.createElement('div');pendingSamples.id='intakePendingSamples';pendingSamples.className='intake-warning';pendingSamples.style.marginBottom='16px';pendingSamples.hidden=true;$('page-samples').insertBefore(pendingSamples,summary);
@@ -587,7 +635,7 @@ function importState(payload){
  const positions=form.positions.map(p=>{if(!p||typeof p.position!=='string'||p.position.length>120||typeof p.thickness_nm!=='string'||p.thickness_nm.length>1000)throw new Error('위치별 두께 입력 중 저장값을 확인하세요.');return {position:p.position,thickness_nm:p.thickness_nm};});
  if(nextFields.image_id&&!B.getImage(nextFields.image_id)){nextFields.image_id='';warnings.push('입력 중 OM 이미지는 다시 선택');}
  if(form.file_pending)warnings.push('미등록 사진은 다시 선택');
- resetCriteriaDraft();thicknessUndo=null;thicknessMessage='';queue=nextQueue;undoQueue=nextUndo;dirty=payload.dirty;pendingFileDraft=form.file_pending;
+ resetCriteriaDraft();sampleUndo=null;sampleMessage='';thicknessUndo=null;thicknessMessage='';queue=nextQueue;undoQueue=nextUndo;dirty=payload.dirty;pendingFileDraft=form.file_pending;
  $('intakeImageFile').value='';refreshImages();
  for(const [key,id]of Object.entries(FORM_FIELDS))$(id).value=nextFields[key];
  $('intakePositions').replaceChildren();positions.forEach(p=>appendPosition(p.position,p.thickness_nm));updatePositionCount();
@@ -694,6 +742,9 @@ $('intakeClearQueue').addEventListener('click',()=>{setQueue([]);notify('등록 
 $('intakeDeleteSelectedThickness').addEventListener('click',()=>deleteThickness('selected'));
 $('intakeDeleteAllThickness').addEventListener('click',()=>deleteThickness('all'));
 $('intakeUndoThickness').addEventListener('click',undoThicknessDeletion);
+$('intakeDeleteSelectedSample').addEventListener('click',()=>deleteSamples('selected'));
+$('intakeDeleteAllSamples').addEventListener('click',()=>deleteSamples('all'));
+$('intakeUndoSamples').addEventListener('click',undoSampleDeletion);
 $('intakeLoadBuiltIn').addEventListener('click',()=>{try{loadBuiltIn();}catch(e){error(e.message);}});$('intakeRun').addEventListener('click',()=>{try{error('');runAnalysis();}catch(e){error(e.message);}});
 $('intakeExportMeta').addEventListener('click',()=>{try{exportRows('meta');}catch(e){error(e.message);}});$('intakeExportThickness').addEventListener('click',()=>{try{exportRows('thickness');}catch(e){error(e.message);}});
 $('intakeOpenCsv').addEventListener('click',()=>{B.navigate('data');const d=document.querySelector('#wfInputs details');if(d)d.open=true;});$('intakeChangeRule').addEventListener('click',()=>{B.navigate('samples');$('wfTarget').focus();});
@@ -702,7 +753,7 @@ candidates.addEventListener('input',event=>{if(event.target.matches('[data-crite
 candidates.addEventListener('click',event=>{if(event.target.closest('#intakeCriteriaApply')){try{applyCriteria(captureCriteriaDraft());}catch(e){setCriteriaFeedback(e.message+' · 기존 기준 유지','error');}}else if(event.target.closest('#intakeCriteriaCancel')){resetCriteriaDraft();renderAnalysis();}});
 candidates.addEventListener('keydown',event=>{if(event.key==='Enter'&&event.target.matches('[data-criteria-field]')){event.preventDefault();$('intakeCriteriaApply').click();}});
 document.addEventListener('wf-rendered',()=>{if(!internal&&!dirty){queue=B.getSamples();renderQueue();}updateRule();renderAnalysis();syncStep();});document.addEventListener('om-metrics-updated',refreshImages);document.addEventListener('hfo2-image-added',refreshImages);document.addEventListener('surface-reviewed',renderAnalysis);
-window.Hfo2Intake={deleteThickness,undoThicknessDeletion,getQueue:()=>clone(queue),setQueue,stageSample,runAnalysis,loadBuiltIn,exportRows,exportState,importState,csvFor,rowsFor,grade,criterionLines,assessThickness,getThicknessAssessments,assessCombined,getSampleAssessments,getConditionAssessments,rankConditionAssessments,renderAnalysis,isPending:()=>dirty};
+window.Hfo2Intake={deleteSamples,undoSampleDeletion,deleteThickness,undoThicknessDeletion,getQueue:()=>clone(queue),setQueue,stageSample,runAnalysis,loadBuiltIn,exportRows,exportState,importState,csvFor,rowsFor,grade,criterionLines,assessThickness,getThicknessAssessments,assessCombined,getSampleAssessments,getConditionAssessments,rankConditionAssessments,renderAnalysis,isPending:()=>dirty};
 resetPositions();refreshImages();internal=true;try{B.clearSamples();}finally{internal=false;}queue=[];dirty=false;renderQueue();renderAnalysis();B.navigate('intake');
 })();
 </script>
@@ -3220,7 +3271,7 @@ async function write(value){
 async function savePrevious(value){const db=await database();return new Promise((resolve,reject)=>{const tx=db.transaction('snapshots','readwrite');tx.objectStore('snapshots').put(value,'previous');tx.oncomplete=()=>resolve();tx.onerror=()=>reject(tx.error||new Error('이전 상태 보관에 실패했습니다.'));tx.onabort=tx.onerror;});}
 function capture(){
  if(!B.exportState||!I.exportState||!S.exportState)throw new Error('전체 저장 기능을 불러오지 못했습니다. 최신 프로그램을 다시 열어 주세요.');
- return {schema:1,version:'0.5.3',savedAt:new Date().toISOString(),core:B.exportState(),intake:I.exportState(),surface:S.exportState()};
+ return {schema:1,version:'0.5.4',savedAt:new Date().toISOString(),core:B.exportState(),intake:I.exportState(),surface:S.exportState()};
 }
 async function apply(value){
  validateSnapshot(value);if(!B.importState||!I.importState||!S.importState)throw new Error('복원 기능을 불러오지 못했습니다. 최신 프로그램을 다시 열어 주세요.');
@@ -3336,7 +3387,7 @@ function uploadTypeError(file,kind){
  const name=String(file?.name||'');
  if(kind==='image')return /\.(png|jpe?g|webp|bmp)$/i.test(name)?'':'OM 사진에는 PNG·JPG·WebP·BMP 파일을 넣으세요.';
  if(/\.csv$/i.test(name))return 'CSV 파일은 왼쪽 CSV 입력에서 공정조건 CSV와 두께 CSV를 각각 등록하세요. 이 칸은 두 시트가 있는 .xlsx 파일용입니다.';
- return /\.xlsx$/i.test(name)?'':'측정 엑셀에는 공정조건·두께 시트가 있는 .xlsx 파일을 넣으세요.';
+ return /\.xlsx$/i.test(name)?'':'측정값에는 공정조건·두께 시트가 있는 .xlsx 파일을 넣으세요.';
 }
 function bindFileDropZone(zone,{onFiles,isBusy,onError}){
  let depth=0;const reset=()=>{depth=0;zone.classList.remove('quick-drop-active');};
@@ -3379,7 +3430,7 @@ style.textContent+=`
 `;
 document.head.appendChild(style);
 const panel=document.createElement('section');panel.id='quickImport';panel.className='quick-import';
-panel.innerHTML='<div class="quick-upload-grid"><section id="quickOmDropZone" class="quick-upload-card quick-drop-zone" role="group" aria-label="OM 사진 파일 놓기" aria-describedby="quickOmDropHint"><div class="quick-card-heading"><h3>OM 사진</h3><span>IMAGE</span></div><p>PNG · JPG · WebP · BMP · 여러 장 선택</p><div id="quickOmDropHint" class="quick-drop-hint">사진을 여기에 끌어 놓거나 파일 선택</div><input id="quickOmFiles" type="file" multiple accept="image/png,image/jpeg,image/webp,image/bmp" aria-label="OM 사진 업로드"><div id="quickOmLabel" class="quick-file-label">등록된 사진 없음</div><div id="quickOmNames" class="quick-file-list"></div></section><section id="quickExcelDropZone" class="quick-upload-card quick-drop-zone" role="group" aria-label="측정 엑셀 파일 놓기" aria-describedby="quickExcelDropHint"><div class="quick-card-heading"><h3>측정 엑셀</h3><span>DATA</span></div><p>.xlsx · 공정조건 / 두께 2개 시트 · 여러 파일 선택</p><div id="quickExcelDropHint" class="quick-drop-hint">엑셀을 여기에 끌어 놓거나 파일 선택</div><label class="quick-excel-mode">가져오기<select id="quickExcelMode"><option value="append">목록에 추가</option><option value="replace">목록 교체</option></select></label><input id="quickExcelFile" type="file" multiple accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" aria-label="측정 엑셀 여러 파일 업로드"><div id="quickExcelLabel" class="quick-file-label">선택된 엑셀 없음</div><div id="quickExcelNames" class="quick-file-list"></div><button id="quickSampleWorkbook" type="button">샘플 엑셀</button><div class="quick-format-note">CSV 양식은 <button id="quickOpenCSV" type="button">CSV 입력</button>에서 등록</div></section></div><div class="quick-preview"><div class="quick-preview-head"><h3>샘플 · 사진 연결</h3><span id="quickPreviewCount">샘플 0개</span></div><div id="quickPreview"></div></div><div class="quick-footer"><div id="quickCriteria" class="quick-criteria"></div><div class="quick-next-action"><button id="quickCompare" type="button" class="quick-compare" disabled>분석·비교</button><small>두께 계산 → OM 분석 → 조건 비교</small></div></div><div id="quickStatus" class="quick-status" role="status" aria-live="polite"></div><div id="quickError" class="quick-error" role="alert" hidden></div>';
+panel.innerHTML='<div class="quick-upload-grid"><section id="quickOmDropZone" class="quick-upload-card quick-drop-zone" role="group" aria-label="OM 사진 파일 놓기" aria-describedby="quickOmDropHint"><div class="quick-card-heading"><h3>OM 사진</h3><span>IMAGE</span></div><p>PNG · JPG · WebP · BMP · 여러 장 선택</p><div id="quickOmDropHint" class="quick-drop-hint">사진을 여기에 끌어 놓거나 파일 선택</div><input id="quickOmFiles" type="file" multiple accept="image/png,image/jpeg,image/webp,image/bmp" aria-label="OM 사진 업로드"><div id="quickOmLabel" class="quick-file-label">등록된 사진 없음</div><div id="quickOmNames" class="quick-file-list"></div></section><section id="quickExcelDropZone" class="quick-upload-card quick-drop-zone" role="group" aria-label="측정값 파일 놓기" aria-describedby="quickExcelDropHint"><div class="quick-card-heading"><h3>측정값</h3><span>DATA</span></div><p>.xlsx · 공정조건 / 두께 2개 시트 · 여러 파일 선택</p><div id="quickExcelDropHint" class="quick-drop-hint">엑셀을 여기에 끌어 놓거나 파일 선택</div><label class="quick-excel-mode">가져오기<select id="quickExcelMode"><option value="append">목록에 추가</option><option value="replace">목록 교체</option></select></label><input id="quickExcelFile" type="file" multiple accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" aria-label="측정값 여러 파일 업로드"><div id="quickExcelLabel" class="quick-file-label">선택된 엑셀 없음</div><div id="quickExcelNames" class="quick-file-list"></div><button id="quickSampleWorkbook" type="button">샘플 엑셀</button><div class="quick-format-note">CSV 양식은 <button id="quickOpenCSV" type="button">CSV 입력</button>에서 등록</div></section></div><div class="quick-preview"><div class="quick-preview-head"><h3>샘플 · 사진 연결</h3><span id="quickPreviewCount">샘플 0개</span></div><div id="quickPreview"></div></div><div class="quick-footer"><div id="quickCriteria" class="quick-criteria"></div><div class="quick-next-action"><button id="quickCompare" type="button" class="quick-compare" disabled>분석·비교</button><small>두께 계산 → OM 분석 → 조건 비교</small></div></div><div id="quickStatus" class="quick-status" role="status" aria-live="polite"></div><div id="quickError" class="quick-error" role="alert" hidden></div>';
 hero.insertAdjacentElement('afterend',panel);
 const manualDetails=document.createElement('details');manualDetails.id='quickManualDetails';manualDetails.className='quick-manual';manualDetails.innerHTML='<summary>직접 입력 · 상세 등록</summary>';layout.parentNode.insertBefore(manualDetails,layout);manualDetails.appendChild(layout);
 const photoDetails=document.createElement('details');photoDetails.className='quick-photo-details';photoDetails.innerHTML='<summary>OM 이미지 바로가기</summary>';const photoStrip=document.createElement('div');photoStrip.id='quickComparePhotos';photoStrip.className='quick-photos';photoDetails.appendChild(photoStrip);$('intakeCandidateSummary').insertAdjacentElement('afterend',photoDetails);
@@ -3396,14 +3447,14 @@ function refresh(){
  const images=B.listImages();$('quickOmLabel').textContent=images.length?'등록된 사진 '+images.length+'장':'등록된 사진 없음';$('quickOmNames').textContent=images.map(image=>image.filename).join(' · ');
  $('quickExcelLabel').textContent=workbookLabel||(samples.length?'등록 목록 '+samples.length+'개 샘플':'선택된 엑셀 없음');$('quickExcelNames').textContent=workbookNames.join(' · ');$('quickPreviewCount').textContent='샘플 '+samples.length+'개 · OM 연결 '+samples.filter(sample=>sample.image_id&&B.getImage(sample.image_id)).length+'개';$('quickCompare').disabled=busy||!samples.length;
  const matches=new Map(latestMatches.map(match=>[match.sample_id,match]));
- $('quickPreview').innerHTML=samples.length?'<div class="table-wrap"><table class="quick-match-table"><thead><tr><th>Sample / 출처</th><th>위치별 두께</th><th>OM 사진</th></tr></thead><tbody>'+samples.map(sample=>{const image=B.getImage(sample.image_id),match=matches.get(sample.id),source=sample.data_source==='SYNTHETIC'?'기능 확인용':'실측 표기 · 미검증',om=image?root.Hfo2Surface?.getAssessment?.(sample.image_id):null;return '<tr><td><strong>'+escape(sample.id)+'</strong><div class="quick-source">'+source+'</div></td><td>'+sample.points.length+'개'+(sample.stats?'<div class="quick-match-state">평균 '+fmt(sample.stats.mean,2)+' nm</div>':'<div class="quick-match-state pending">두께 미입력</div>')+'</td><td><div class="quick-match-photo">'+(image?'<img src="'+escape(image.image_data_url)+'" alt="'+escape(sample.id)+' 연결 OM">':'')+'<div><select data-quick-map="'+escape(sample.id)+'" aria-label="'+escape(sample.id)+' OM 사진 연결"'+(busy?' disabled':'')+'><option value="">OM 미연결</option>'+images.map(record=>'<option value="'+escape(record.id)+'"'+(record.id===sample.image_id?' selected':'')+'>'+escape(record.filename+' · '+record.id)+'</option>').join('')+'</select><div class="quick-match-state'+(image?'':' pending')+'">'+escape(match?.reason||(image?'등록 이미지 연결':'OM 미연결 · 판정 대기'))+'</div>'+(om?'<div class="quick-match-state '+(om.state==='fail'?'fail':om.state==='pass'?'':'pending')+'">'+escape(om.label)+'</div>':'')+'</div></div></td></tr>';}).join('')+'</tbody></table></div>':'<div class="quick-empty"><strong>등록된 샘플 없음</strong>OM 사진 · 측정 엑셀 첨부 후 Sample ID로 연결</div>';
+ $('quickPreview').innerHTML=samples.length?'<div class="table-wrap"><table class="quick-match-table"><thead><tr><th>Sample / 출처</th><th>위치별 두께</th><th>OM 사진</th></tr></thead><tbody>'+samples.map(sample=>{const image=B.getImage(sample.image_id),match=matches.get(sample.id),source=sample.data_source==='SYNTHETIC'?'기능 확인용':'실측 표기 · 미검증',om=image?root.Hfo2Surface?.getAssessment?.(sample.image_id):null;return '<tr><td><strong>'+escape(sample.id)+'</strong><div class="quick-source">'+source+'</div></td><td>'+sample.points.length+'개'+(sample.stats?'<div class="quick-match-state">평균 '+fmt(sample.stats.mean,2)+' nm</div>':'<div class="quick-match-state pending">두께 미입력</div>')+'</td><td><div class="quick-match-photo">'+(image?'<img src="'+escape(image.image_data_url)+'" alt="'+escape(sample.id)+' 연결 OM">':'')+'<div><select data-quick-map="'+escape(sample.id)+'" aria-label="'+escape(sample.id)+' OM 사진 연결"'+(busy?' disabled':'')+'><option value="">OM 미연결</option>'+images.map(record=>'<option value="'+escape(record.id)+'"'+(record.id===sample.image_id?' selected':'')+'>'+escape(record.filename+' · '+record.id)+'</option>').join('')+'</select><div class="quick-match-state'+(image?'':' pending')+'">'+escape(match?.reason||(image?'등록 이미지 연결':'OM 미연결 · 판정 대기'))+'</div>'+(om?'<div class="quick-match-state '+(om.state==='fail'?'fail':om.state==='pass'?'':'pending')+'">'+escape(om.label)+'</div>':'')+'</div></div></td></tr>';}).join('')+'</tbody></table></div>':'<div class="quick-empty"><strong>등록된 샘플 없음</strong>OM 사진 · 측정값 첨부 후 Sample ID로 연결</div>';
  let rule;try{rule=B.getRule();}catch(e){$('quickCriteria').textContent='판정 기준 입력 확인 필요';return;}
  const policy=root.Hfo2Surface?.getPolicy?.()||{};$('quickCriteria').innerHTML='<strong>현재 판정 기준</strong><br>두께 '+fmt(rule.target)+' ± '+fmt(rule.tolerance)+' nm · CV ≤ '+fmt(rule.cvLimit)+'%<br>OM 얼룩 의심 면적 ≤ '+fmt(policy.areaLimit)+'% · 밀도 ≤ '+fmt(policy.particleDensityLimit)+'개/1만 px<small>초기 운영 기준 · OM 자동 판정 · 예외 검토</small>';
 }
 function refreshResultPhotos(){const samples=B.getSamples();photoDetails.hidden=!samples.length;photoStrip.hidden=!samples.length;photoStrip.innerHTML=samples.map(sample=>{const image=B.getImage(sample.image_id),assessment=I.assessCombined(sample,B.getRule());return '<button type="button" class="quick-photo-shortcut" data-quick-review="'+escape(sample.id)+'" data-state="'+assessment.om.state+'"'+(image?'':' disabled')+'>'+(image?'<img src="'+escape(image.image_data_url)+'" alt="'+escape(sample.id)+' OM">':'<div class="quick-photo-missing">OM 미연결</div>')+'<strong>'+escape(sample.id)+'</strong><span>'+escape(assessment.om.label)+(image?(assessment.om.state==='pass'?' · 결과 보기 →':' · 검토 →'):'')+'</span></button>';}).join('');}
 async function compare(){
  if(busy)return null;
- const samples=I.getQueue();if(!samples.length){showError('측정 엑셀 또는 샘플을 먼저 등록하세요.');return null;}
+ const samples=I.getQueue();if(!samples.length){showError('측정값 또는 샘플을 먼저 등록하세요.');return null;}
  let previousCore,previousIntake,applied=false;
  setBusy(true);showError('');showStatus('두께 분석 · OM 자동 분석 중');
  try{
@@ -3430,7 +3481,7 @@ async function importImageFiles(incoming){
  catch(e){showError(String(e.message||e));}finally{$('quickOmFiles').value='';setBusy(false);}
 }
 async function importWorkbookFiles(incoming){
- const files=Array.from(incoming||[]);if(!files.length||busy)return;const mode=$('quickExcelMode').value;setBusy(true);showError('');showStatus('측정 엑셀 '+files.length+'개 읽는 중');
+ const files=Array.from(incoming||[]);if(!files.length||busy)return;const mode=$('quickExcelMode').value;setBusy(true);showError('');showStatus('측정값 '+files.length+'개 읽는 중');
  const initialSignature=queueSignature(I.getQueue());
  try{
   if(!root.Hfo2Excel?.readFile)throw new Error('엑셀 읽기 기능을 불러오지 못했습니다.');
