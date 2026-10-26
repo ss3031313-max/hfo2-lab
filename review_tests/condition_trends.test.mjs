@@ -96,11 +96,38 @@ test('graph output escapes sample IDs and does not modify application inputs',()
 const policy={threshold:5,minArea:16,particleMinArea:2,areaLimit:5,particleDensityLimit:10,valid:true};
 function opticalResult(image_id,extra={}){return {image_id,width:1024,height:768,roi:{left:5,top:5,right:95,bottom:95},threshold:5,minArea:16,particleMinArea:2,referenceSource:'MANUAL',areaPercent:2,particleDensityPer10k:.28,particleCount:20,correctionCount:0,assessment:{state:'pass',label:'OM 기준 충족',reason:'검토 완료'},...extra};}
 function opticalContext(samples,results,extra={}){return {images:samples.filter(s=>s.image_id).map(s=>({id:s.image_id,filename:s.image_id+'.png',magnification:100})),results,policy:{...policy},...extra};}
-test('six presets include both coating OM metrics with explicit units',()=>{
- assert.equal(T.PRESETS.length,6);
+test('seven presets begin with coating CV and mean, followed by OM metrics',()=>{
+ assert.equal(T.PRESETS.length,7);
+ assert.deepEqual(T.PRESETS.slice(0,2).map(p=>p.id),['coats_cv','coats_mean']);
  assert.equal(T.getPreset('coats_area').unit,'%');
  assert.equal(T.getPreset('coats_density').unit,'개/1만 픽셀');
  assert.equal(T.getPreset('coats_area').x,'coats');
+});
+
+test('controlled coating comparison connects condition means, mixed conditions remain unconnected',()=>{
+ const inputs=[sample('one',{coats:1,stats:{mean:12,cv:1.32,n:5}}),sample('two',{coats:2,stats:{mean:15,cv:5.27,n:5}}),sample('three',{coats:3,stats:{mean:18,cv:17.57,n:5}})];
+ const model=T.buildModel(inputs,'coats_cv',rule);
+ assert.equal(model.controlled,true);assert.equal(model.levels,3);
+ const svg=T.graphHTML(model,rule);
+ assert.match(svg,/hfo-trends-connection/);assert.match(svg,/1.32%/);assert.match(svg,/5.27%/);assert.match(svg,/17.57%/);
+ assert.deepEqual(T.buildPoints(inputs,'coats_mean',rule).map(p=>p.y),[12,15,18]);
+ assert.doesNotMatch(T.graphHTML(T.buildModel(inputs,'coats_cv',rule,'all'),rule),/polyline/);
+ const mixed=inputs.map((s,i)=>({...s,concentration_M:(i+1)/10}));
+ assert.doesNotMatch(T.graphHTML(T.buildModel(mixed,'coats_cv',rule),rule),/polyline/);
+});
+test('line summaries use each condition mean without joining replicates in input order',()=>{
+ assert.deepEqual(T.conditionMeans([{x:2,y:8},{x:1,y:2},{x:2,y:4}]),[{x:1,y:2,n:1},{x:2,y:6,n:2}]);
+});
+test('CV graph color uses CV alone while overall thickness verdict still includes mean',()=>{
+ const p=T.buildPoints([sample('thin',{stats:{mean:12,cv:1.32,n:5}})],'coats_cv',rule)[0];
+ assert.equal(p.state,'fail');assert.equal(T.metricState(p,T.getPreset('coats_cv'),rule),'pass');
+ assert.equal(T.metricState(p,T.getPreset('coats_mean'),rule),'fail');
+ assert.equal(T.metricState({...p,mean:15,cv:12},T.getPreset('coats_cv'),rule),'fail');
+ assert.equal(T.metricState({...p,mean:15,cv:12},T.getPreset('coats_mean'),rule),'pass');
+});
+test('rounded y-axis ticks cover data and zero and maintain finite spacing',()=>{
+ const scale=T.niceScale([1.32,5.27,17.57,10]);assert.deepEqual(scale.ticks,[0,5,10,15,20]);
+ for(const values of [[0],[.0002,.0007],[10,100],[]]){const s=T.niceScale(values);assert.ok(s.step>0&&Number.isFinite(s.high));assert.ok(s.high>=Math.max(0,...values));assert.equal(s.ticks[0],0);}
 });
 test('OM plots use adjusted metrics and do not depend on valid thickness',()=>{
  const s=sample('om-only',{image_id:'image1',points:[],stats:null}),r=opticalResult('image1',{areaPercent:1.5,particleDensityPer10k:.125,correctionCount:2,automaticMetrics:{areaPercent:8,particleDensityPer10k:50}}),context=opticalContext([s],[r]);
