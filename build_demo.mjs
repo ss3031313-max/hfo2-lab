@@ -37,7 +37,7 @@ const assets = ['./index.html','./manifest.webmanifest','./icons/icon-192.png','
 const workerTemplate = fs.readFileSync(path.join(root, 'src/service_worker.template.js'), 'utf8');
 const hash = createHash('sha256').update(workerTemplate);
 for (const asset of assets) hash.update(asset).update(fs.readFileSync(path.join(root, asset)));
-const buildId = '0.5.2-' + hash.digest('hex').slice(0, 16);
+const buildId = '0.5.3-' + hash.digest('hex').slice(0, 16);
 for (const token of ['__PWA_BUILD_ID__','__PWA_ASSETS_JSON__']) {
   if (workerTemplate.split(token).length !== 2) throw new Error(`Expected one ${token} placeholder.`);
 }
