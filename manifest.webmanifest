@@ -1,7 +1,7 @@
 {
   "id": "./",
-  "name": "박막 분석",
-  "short_name": "박막 분석",
+  "name": "Thin Film Analysis",
+  "short_name": "Thin Film Analysis",
   "description": "공정조건·두께·OM 이미지를 연결하는 박막 분석 도구",
   "lang": "ko",
   "start_url": "./",
