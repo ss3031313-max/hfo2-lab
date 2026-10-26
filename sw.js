@@ -1,6 +1,6 @@
 /* HfO2 Lab app files only. Experimental inputs stay in IndexedDB, never in this cache. */
 'use strict';
-const BUILD_ID = '0.5.7-58c23e659ca46f47';
+const BUILD_ID = '0.5.8-95d1bb47f6d0941b';
 const APP_ASSETS = ["./index.html","./manifest.webmanifest","./icons/icon-192.png","./icons/icon-512.png","./icons/maskable-512.png","./icons/icon.svg"];
 const SCOPE = new URL(self.registration.scope);
 const CACHE_PREFIX = 'hfo2-pwa:' + encodeURIComponent(SCOPE.href) + ':';
