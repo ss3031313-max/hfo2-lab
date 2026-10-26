@@ -63,7 +63,10 @@ function createController({read,write,savePrevious=async()=>{},capture,apply,sta
   try{
    original=await read();
    if(original){
-    validateSnapshot(original);baseline=snapshot();report('restoring','저장 자료 복원 중');const warnings=await apply(original);lastSavedAt=original.savedAt;restoreWarnings=Array.isArray(warnings)?[...warnings]:[];
+    validateSnapshot(original);baseline=snapshot();report('restoring','저장 자료 복원 중');
+    // Restore all data, but open registration on every fresh launch or reload.
+    const startup={...original,core:{...original.core,activePage:'intake'}};
+    const warnings=await apply(startup);lastSavedAt=original.savedAt;restoreWarnings=Array.isArray(warnings)?[...warnings]:[];
     report(restoreWarnings.length?'warning':'saved',restoreWarnings.length?'복원됨 · 일부 확인 필요':'복원됨');
    }else report('ready','자동저장 준비');
   }catch(e){
@@ -120,7 +123,7 @@ async function write(value){
 async function savePrevious(value){const db=await database();return new Promise((resolve,reject)=>{const tx=db.transaction('snapshots','readwrite');tx.objectStore('snapshots').put(value,'previous');tx.oncomplete=()=>resolve();tx.onerror=()=>reject(tx.error||new Error('이전 상태 보관에 실패했습니다.'));tx.onabort=tx.onerror;});}
 function capture(){
  if(!B.exportState||!I.exportState||!S.exportState)throw new Error('전체 저장 기능을 불러오지 못했습니다. 최신 프로그램을 다시 열어 주세요.');
- return {schema:1,version:'0.5.4',savedAt:new Date().toISOString(),core:B.exportState(),intake:I.exportState(),surface:S.exportState()};
+ return {schema:1,version:'0.5.5',savedAt:new Date().toISOString(),core:B.exportState(),intake:I.exportState(),surface:S.exportState()};
 }
 async function apply(value){
  validateSnapshot(value);if(!B.importState||!I.importState||!S.importState)throw new Error('복원 기능을 불러오지 못했습니다. 최신 프로그램을 다시 열어 주세요.');
