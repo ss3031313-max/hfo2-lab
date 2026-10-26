@@ -33,6 +33,22 @@ test('initial events during applying restored data cannot schedule writes',async
  gate.resolve(frame(3));await c.ready;assert.equal(h.writes.length,0);assert.equal(h.timers.size,0);assert.equal(c.getStatus().dirty,false);
 });
 
+test('every saved page opens registration on startup without changing stored data',async()=>{
+ for(const page of ['intake','data','samples','om','compare']){
+  const saved=frame(7);saved.core.activePage=page;saved.core.ruleInputs={target:'15',tolerance:'2',cvLimit:'10'};
+  saved.core.images=[{id:'OM-1',filename:'surface.png'}];saved.intake.queue=[{id:'S1',points:[12,15,18]}];saved.surface.reviews={id:'OM-1',confirmed:true};
+  const before=copy(saved),h=harness({read:async()=>saved});await h.c.ready;
+  const expected=copy(saved);expected.core.activePage='intake';
+  assert.deepEqual(h.current,expected);assert.deepEqual(saved,before);assert.equal(h.writes.length,0);
+ }
+});
+
+test('manual restoration still keeps its requested page for backup and image-undo workflows',async()=>{
+ const saved=frame(4);saved.core.activePage='om';const h=harness({read:async()=>saved});await h.c.ready;
+ assert.equal(h.current.core.activePage,'intake');await h.c.restore(saved);
+ assert.equal(h.current.core.activePage,'om');assert.equal(h.current.core.value,4);
+});
+
 test('debounced changes write the latest complete snapshot once',async()=>{
  const h=harness();await h.c.ready;
  for(let i=1;i<=4;i++){h.current=frame(i);h.c.changed();}
