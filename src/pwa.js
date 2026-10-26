@@ -127,7 +127,7 @@ $('hfoPwaInstall').addEventListener('click', async () => {
   const event = installEvent; installEvent = null; $('hfoPwaInstall').disabled = true;
   try {
     await event.prompt(); const choice = await event.userChoice;
-    if (choice?.outcome === 'accepted') notify('설치 요청을 전달했습니다. 설치가 끝나면 바탕화면 또는 앱 목록에서 HfO₂ Lab을 여세요.');
+    if (choice?.outcome === 'accepted') notify('설치 요청을 전달했습니다. 설치가 끝나면 바탕화면 또는 앱 목록에서 박막 분석을 여세요.');
   } catch (_) { notify('설치 창을 열지 못했습니다. 브라우저 메뉴의 앱 설치 항목을 확인하세요.',true); }
   finally { $('hfoPwaInstall').disabled = false; installState(); }
 });
@@ -143,7 +143,7 @@ $('hfoPwaUpdate').addEventListener('click', async () => {
   catch (_) { stopUpdate('업데이트 요청을 전달하지 못했습니다. 현재 화면을 유지했습니다.'); }
 });
 root.addEventListener('beforeinstallprompt', event => { event.preventDefault(); installEvent = event; installState(); });
-root.addEventListener('appinstalled', () => { installEvent = null; $('hfoPwaInstall').hidden = true; notify('앱 설치 완료 · 앱 목록에서 HfO₂ Lab을 실행할 수 있습니다.'); });
+root.addEventListener('appinstalled', () => { installEvent = null; $('hfoPwaInstall').hidden = true; notify('앱 설치 완료 · 앱 목록에서 박막 분석을 실행할 수 있습니다.'); });
 displayMode?.addEventListener?.('change', installState);
 installState();
 
