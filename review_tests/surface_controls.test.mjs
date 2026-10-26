@@ -58,7 +58,7 @@ function dragHarness(){
  const reviewState={result,automaticResult:result,confirmation:'OVERLAY_REVIEWED',reference:{left:10,top:10,right:20,bottom:20}};
  function canvas(id){const handlers={};return {id,width:100,height:100,handlers,captured:[],addEventListener(type,fn){handlers[type]=fn;},getBoundingClientRect:()=>({left:100,top:200,width:400,height:200}),setPointerCapture(id){this.captured.push(id);},releasePointerCapture(){}};}
  const left=canvas('srOriginal'),right=canvas('srResult'),nodes={srOriginal:left,srResult:right};
- const ctx=vm.createContext({console,drag:null,suppressResultClick:false,busy:false,policyError:'',current:'test',$:id=>nodes[id],B:{getPixels:()=>pixelsAvailable?{width:100,height:100}:null},draw:()=>draws++,applyReference:r=>applied.push({...r}),state:()=>({...reviewState,result:resultAvailable?result:null}),reviewMask:()=>{},masks:new Map([['test',[]]]),inspectComponent:(r,m,p)=>{points.push({...p});return {seed:1};},inspectComponentsInBox:(r,m,b)=>{boxes.push({...b});return [{seed:1},{seed:2}];},selectReviewComponent:c=>selections.push(c?[{...c}]:[]),selectReviewComponents:items=>selections.push(Array.from(items,c=>({...c}))),reviewFeedback:()=>{},error:message=>errors.push(message)});
+ const ctx=vm.createContext({console,drag:null,suppressResultClick:false,reviewMode:'SELECT',stainDraft:[],busy:false,policyError:'',current:'test',$:id=>nodes[id],B:{getPixels:()=>pixelsAvailable?{width:100,height:100}:null},draw:()=>draws++,applyReference:r=>applied.push({...r}),state:()=>({...reviewState,result:resultAvailable?result:null}),reviewMask:()=>{},masks:new Map([['test',[]]]),inspectComponent:(r,m,p)=>{points.push({...p});return {seed:1};},inspectComponentsInBox:(r,m,b)=>{boxes.push({...b});return [{seed:1},{seed:2}];},selectReviewComponent:c=>selections.push(c?[{...c}]:[]),selectReviewComponents:items=>selections.push(Array.from(items,c=>({...c}))),reviewFeedback:()=>{},error:message=>errors.push(message)});
  const begin=source.indexOf('function referencePointerPosition('),end=source.indexOf("\n$('srAnalyze').addEventListener",begin);
  const click=source.split('\n').find(line=>line.startsWith("$('srResult').addEventListener('click'"));
  vm.runInContext(source.slice(begin,end)+'\n'+click,ctx);
@@ -114,4 +114,10 @@ test('tiny right movement acts as a single click and suppresses the browser foll
 test('a direct right click still supports individual connected-component inspection',()=>{
  const h=dragHarness();h.fire(h.right,'click',30,40);
  assert.equal(h.points.length,1);assert.equal(h.selections.length,1);assert.equal(h.boxes.length,0);assert.equal(h.applied.length,0);
+});
+
+test('manual stain drawing mode leaves exclusion drag and reference unchanged',()=>{
+ const h=dragHarness();h.ctx.reviewMode='ADD_STAIN';const added=[];h.ctx.addStainPoint=e=>added.push({x:e.clientX,y:e.clientY});
+ h.fire(h.right,'pointerdown',20,20);h.fire(h.right,'pointermove',40,40);h.fire(h.right,'pointerup',40,40);h.fire(h.right,'click',40,40);
+ assert.equal(h.ctx.drag,null);assert.equal(h.right.captured.length,0);assert.equal(h.boxes.length,0);assert.equal(h.points.length,0);assert.equal(h.applied.length,0);assert.equal(added.length,1);assert.equal(h.reviewState.confirmation,'OVERLAY_REVIEWED');
 });
