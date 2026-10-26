@@ -17,7 +17,7 @@ const embedded = catalog.map(record => {
 });
 const serialized = JSON.stringify(embedded).replace(/</g, '\\u003c');
 let output = template.replace(placeholder, () => serialized);
-for (const [token, filename] of [['__INTAKE_JS__','intake.js'],['__SURFACE_JS__','surface_review.js'],['__PAKO_JS__','vendor/pako_inflate.min.js'],['__SAX_JS__','vendor/sax.js'],['__XLSX_IMPORT_JS__','xlsx_import.js'],['__QUICK_IMPORT_JS__','quick_import.js'],['__AUTOSAVE_JS__','autosave.js'],['__IMAGE_MANAGEMENT_JS__','image_management.js']]) {
+for (const [token, filename] of [['__INTAKE_JS__','intake.js'],['__SURFACE_JS__','surface_review.js'],['__PAKO_JS__','vendor/pako_inflate.min.js'],['__SAX_JS__','vendor/sax.js'],['__XLSX_IMPORT_JS__','xlsx_import.js'],['__QUICK_IMPORT_JS__','quick_import.js'],['__AUTOSAVE_JS__','autosave.js'],['__IMAGE_MANAGEMENT_JS__','image_management.js'],['__CONDITION_TRENDS_JS__','condition_trends.js']]) {
   if (output.split(token).length !== 2) throw new Error(`Expected one ${token} placeholder.`);
   const moduleSource = fs.readFileSync(path.join(root, 'src', filename), 'utf8');
   if (/<\/script/i.test(moduleSource)) throw new Error(`${filename} contains an unsafe script-closing sequence.`);
@@ -37,7 +37,7 @@ const assets = ['./index.html','./manifest.webmanifest','./icons/icon-192.png','
 const workerTemplate = fs.readFileSync(path.join(root, 'src/service_worker.template.js'), 'utf8');
 const hash = createHash('sha256').update(workerTemplate);
 for (const asset of assets) hash.update(asset).update(fs.readFileSync(path.join(root, asset)));
-const buildId = '0.5.0-' + hash.digest('hex').slice(0, 16);
+const buildId = '0.5.1-' + hash.digest('hex').slice(0, 16);
 for (const token of ['__PWA_BUILD_ID__','__PWA_ASSETS_JSON__']) {
   if (workerTemplate.split(token).length !== 2) throw new Error(`Expected one ${token} placeholder.`);
 }
