@@ -16,6 +16,24 @@ const sample=(id='DEMO-S01',fields={})=>({id,image_id:null,concentration_M:.2,co
 const image=(id,filename)=>({id,filename,image_data_url:'data:image/png;base64,AA=='});
 const plain=value=>JSON.parse(JSON.stringify(value));
 
+test('OM status counts distinguish automatic passes from actual user confirmations',()=>{
+ const items=[
+  {assessment:{state:'pass',decisionSource:'AUTOMATIC',user_confirmation:'UNREVIEWED'}},
+  {assessment:{state:'pass',decisionSource:'USER_REVIEWED',user_confirmation:'OVERLAY_REVIEWED'}},
+  {assessment:{state:'fail',user_confirmation:'UNREVIEWED'}},
+  {assessment:{state:'pending',user_confirmation:'NEEDS_FURTHER_REVIEW'}},
+  {assessment:{state:'pending',user_confirmation:'UNREVIEWED'}}
+ ];
+ const before=JSON.stringify(items),counts=context.Hfo2QuickImport.summarizeOMAssessments(items);
+ assert.deepEqual(plain(counts),{automaticPass:1,reviewedPass:1,otherPass:0,fail:1,pending:2});
+ assert.equal(JSON.stringify(items),before);
+});
+test('a legacy pass without a confirmation record is not reported as user-confirmed',()=>{
+ const counts=context.Hfo2QuickImport.summarizeOMAssessments([{state:'pass'}]);
+ assert.equal(counts.reviewedPass,0);assert.equal(counts.automaticPass,0);assert.equal(counts.otherPass,1);
+ assert.deepEqual(plain(context.Hfo2QuickImport.summarizeOMAssessments([])),{automaticPass:0,reviewedPass:0,otherPass:0,fail:0,pending:0});
+});
+
 test('image_filename resolves only the exact registered filename',()=>{
  const result=resolveMappings([sample('DEMO-S01',{image_filename:'measured surface.png'})],[image('UPLOAD-002','other.png'),image('UPLOAD-001','measured surface.png')]);
  assert.equal(result.samples[0].image_id,'UPLOAD-001');

@@ -27,22 +27,22 @@ test('screenshot values are within limits while awaiting review',()=>{
  assert.match(a.reason,/0.04% ≤ 5%/);assert.match(a.reason,/0.28 ≤ 10개/);
 });
 
-test('automatic reference retains numeric status and separately explains its source',()=>{
+test('stable automatic reference meets numeric criteria without fabricating human review',()=>{
  const {S,states}=harness();states.set('image',{result:within,referenceSource:'AUTO',confirmation:'UNREVIEWED'});
- const a=S.getAssessment('image');assert.equal(a.state,'pending');assert.equal(a.label,'수치 기준 충족 · 검토 대기');assert.match(a.reason,/자동 기준 영역/);
+ const a=S.getAssessment('image');assert.equal(a.state,'pass');assert.equal(a.label,'OM 자동 기준 충족');assert.equal(a.decisionSource,'AUTOMATIC');assert.equal(a.user_confirmation,'UNREVIEWED');assert.match(a.reason,/사용자 미확인/);
 });
 
 test('automatic reference does not relabel numeric failure as a review-only state',()=>{
  const {S,states}=harness();
  for(const metric of [{areaPercent:5.01},{particleDensityPer10k:10.01}]){
   states.set('image',{result:{...within,...metric},referenceSource:'AUTO',confirmation:'UNREVIEWED'});
-  const a=S.getAssessment('image');assert.equal(a.state,'fail');assert.equal(a.label,'OM 기준 초과');
+  const a=S.getAssessment('image');assert.equal(a.state,'fail');assert.equal(a.label,'OM 기준 초과 · 검토 필요');
  }
 });
 
 test('review completion promotes an otherwise valid result to final OM pass',()=>{
  const {S}=harness(),a=S.assessResult(within,'OVERLAY_REVIEWED',policy);
- assert.equal(a.state,'pass');assert.equal(a.label,'OM 기준 충족');assert.match(a.reason,/확인 완료/);
+ assert.equal(a.state,'pass');assert.equal(a.label,'OM 기준 충족 · 확인 완료');assert.match(a.reason,/확인 완료/);
 });
 
 test('unstable reference remains a separate reason even with low area and density',()=>{
@@ -51,7 +51,7 @@ test('unstable reference remains a separate reason even with low area and densit
 });
 
 test('missing analysis and explicit further-review status keep their existing priority',()=>{
- const {S}=harness();assert.equal(S.assessResult(null,'UNREVIEWED',policy).label,'OM 분석 대기');
+ const {S}=harness();assert.equal(S.assessResult(null,'UNREVIEWED',policy).label,'자동 분석 대기');
  const a=S.assessResult({...within,areaPercent:8},'NEEDS_FURTHER_REVIEW',policy);
  assert.equal(a.state,'pending');assert.equal(a.label,'추가 검토');
 });

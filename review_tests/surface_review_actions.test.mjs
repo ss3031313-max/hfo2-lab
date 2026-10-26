@@ -57,7 +57,7 @@ test('repeating the identical exclusion preserves confirmed result and does not 
 test('changing only the review note records it and requires renewed confirmation without double subtraction',()=>{
  const h=harness();h.setInput();h.apply();h.state.confirmation='OVERLAY_REVIEWED';
  h.setInput('NON_PARTICLE_PATTERN','checked against another image');h.apply();
- assert.equal(h.state.result.particleCount,2);assert.equal(h.state.corrections.length,1);assert.equal(h.state.corrections[0].note,'checked against another image');assert.equal(h.state.confirmation,'UNREVIEWED');assert.equal(h.renders.length,2);assert.equal(h.emissions,2);
+ assert.equal(h.state.result.particleCount,2);assert.equal(h.state.corrections.length,1);assert.equal(h.state.corrections[0].note,'checked against another image');assert.equal(h.state.confirmation,'UNREVIEWED');assert.equal(h.renders.length,2);assert.equal(h.emissions,2);assert.match(h.feedback().textContent,/개수·밀도 유지/);
 });
 test('invalid replacement of an existing correction retains its numbers, reason and confirmation',()=>{
  const h=harness();h.setInput();h.apply();h.state.confirmation='OVERLAY_REVIEWED';const before=h.state.result,oldEdit=h.state.corrections[0];
@@ -66,7 +66,7 @@ test('invalid replacement of an existing correction retains its numbers, reason 
 });
 test('switching an existing count exclusion to analysis exclusion changes area but subtracts no second count',()=>{
  const h=harness();h.setInput();h.apply();h.setInput('OTHER_CONFIRMED','confirmed test annotation');h.apply('EXCLUDE_ALL');
- assert.equal(h.state.result.particleCount,2);assert.equal(h.state.result.areaPercent,0);assert.equal(h.state.result.componentCount,0);assert.equal(h.state.result.roiPixelCount,4900);assert.equal(h.state.corrections.length,1);assert.equal(h.state.corrections[0].action,'EXCLUDE_ALL');assert.equal(h.renders[1].area,0);assert.equal(h.ctx.displayCache.mask[h.ctx.selectedComponent.seed],4);
+ assert.equal(h.state.result.particleCount,2);assert.equal(h.state.result.areaPercent,0);assert.equal(h.state.result.componentCount,0);assert.equal(h.state.result.roiPixelCount,4900);assert.equal(h.state.corrections.length,1);assert.equal(h.state.corrections[0].action,'EXCLUDE_ALL');assert.equal(h.renders[1].area,0);assert.equal(h.ctx.displayCache.mask[h.ctx.selectedComponent.seed],4);assert.match(h.feedback().textContent,/이미 계수에서 제외/);
 });
 test('selecting a different component can subtract another count and restoring one preserves the other edit',()=>{
  const h=harness();h.setInput();h.apply();h.select(20,20);h.setInput('OTHER_CONFIRMED','test small component');h.apply();

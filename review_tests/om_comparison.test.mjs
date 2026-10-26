@@ -28,6 +28,48 @@ const P=context.Comparison,M=context.OMDemoMath;
 function sample(id='A',values=[15,15],overrides={}){return {id,image_id:'OM-'+id,concentration_M:.2,coats:1,rpm:3000,spin_time_s:30,anneal_temp_C:550,anneal_time_min:120,data_source:'REAL_MEASUREMENT',points:values.map((value,i)=>({position:'P'+i,value})),stats:values.length?M.thickness(values):null,...overrides};}
 function om(state,overrides={}){return {state,label:{pass:'OM 기준 충족',fail:'OM 기준 초과',pending:'OM 검토 대기'}[state],reason:state==='pending'?'오버레이 미검토':state==='fail'?'의심 면적 상한 초과':'면적·밀도 기준 이내 · 오버레이 확인',areaPercent:state==='fail'?7:2,areaLimit:5,threshold:5,minArea:16,particleCount:4,smallParticleCount:3,particleDensityPer10k:2,particleDensityLimit:10,particleMinArea:2,user_confirmation:state==='pending'?'UNREVIEWED':'OVERLAY_REVIEWED',...overrides};}
 function setOM(s,state,overrides){results.set(s.image_id,om(state,overrides));}
+function conditionBatch(prefix,rpm,states,values=[15,15],overrides={}){return states.map((state,index)=>{const s=sample(prefix+'-'+index,values,{rpm,...overrides});setOM(s,state);return s;});}
+
+test('condition priority uses pass rate then failure rate while pending remains separate',()=>{
+ const samples=[...conditionBatch('fail',6000,['fail','fail']),...conditionBatch('mixed',4000,['pass','fail']),...conditionBatch('pending',5000,['pending','pending']),...conditionBatch('best',2000,['pass','pass']),...conditionBatch('waiting',3000,['pass','pending'])],before=JSON.stringify(samples);
+ const groups=P.getConditionAssessments(samples,rule);
+ assert.deepEqual(Array.from(groups,g=>g.rpm),[2000,3000,4000,5000,6000]);
+ assert.deepEqual(Array.from(groups,g=>g.priority_rank),[1,2,3,4,5]);
+ assert.equal(groups[0].preferred_candidate,true);assert.equal(groups[1].combined_fail,0);assert.equal(groups[1].combined_pending,1);assert.equal(groups[3].candidate,false);
+ assert.equal(JSON.stringify(samples),before);
+ assert.deepEqual(Array.from(P.getConditionAssessments([...samples].reverse(),rule),g=>g.rpm),[2000,3000,4000,5000,6000]);
+});
+test('priority ties use decided sample count, mean specimen CV, then fewer coats',()=>{
+ const samples=[...conditionBatch('one',1000,['pass'],[15,15]),...conditionBatch('cv-high',2000,['pass','pass'],[14.8,15.2]),...conditionBatch('many-coats',3000,['pass','pass'],[15,15],{coats:3}),...conditionBatch('one-coat',4000,['pass','pass'],[15,15],{coats:1})];
+ const groups=P.getConditionAssessments(samples,rule);
+ assert.deepEqual(Array.from(groups,g=>g.rpm),[4000,3000,2000,1000]);
+ assert.equal(groups[0].mean_sample_cv,0);assert.ok(groups[2].mean_sample_cv>0);assert.equal(groups[3].decided_count,1);
+});
+test('fully equal priority shares rank and partial recipes cannot become preferred',()=>{
+ const equal=[...conditionBatch('b',4000,['pass']),...conditionBatch('a',3000,['pass'])],groups=P.getConditionAssessments(equal,rule);
+ assert.deepEqual(Array.from(groups,g=>g.priority_rank),[1,1]);assert.ok(groups.every(g=>g.preferred_candidate));assert.deepEqual(Array.from(groups,g=>g.rpm),[3000,4000]);
+ const samples=[...conditionBatch('partial',null,['pass']),...conditionBatch('known-fail',6000,['fail'])],ordered=P.getConditionAssessments(samples,rule);
+ assert.equal(ordered[1].partial,true);assert.equal(ordered[1].candidate,false);assert.ok(ordered.every(g=>!g.preferred_candidate));
+ const noCV=[sample('empty-a',[],{rpm:2000}),sample('empty-b',[],{rpm:3000})];noCV.forEach(s=>setOM(s,'pending'));
+ assert.deepEqual(Array.from(P.getConditionAssessments(noCV,rule),g=>g.priority_rank),[1,1]);
+});
+test('condition cards, summary table and CSV keep the same priority order',()=>{
+ const samples=[...conditionBatch('worst',6000,['fail']),...conditionBatch('middle',4000,['pass','fail']),...conditionBatch('top',2000,['pass','pass'])],groups=P.getConditionAssessments(samples,rule),html=P.render(samples,rule),cards=html.slice(html.indexOf('<h3>충족 시편이 있는 조건'));
+ assert.ok(cards.indexOf('2000 rpm')<cards.indexOf('4000 rpm'));assert.match(cards,/우선 검토 조건/);assert.match(cards,/코팅 횟수 적은 순/);
+ let captured;const table={innerHTML:''};const context=vm.createContext({window:{Hfo2Intake:{getConditionAssessments:()=>groups},Hfo2Surface:{getPolicy:()=>policy}},currentRule:()=>rule,byId:id=>id==='wfSampleTable'?{querySelectorAll:()=>[]}:table,escape:value=>String(value),srcLabel:value=>value,format:(value,d=2)=>Number.isFinite(value)?value.toFixed(d):'—',csvDownload:(name,rows)=>{captured=rows;}});
+ const presentation=template.slice(template.indexOf('function groupAssessments('),template.indexOf("document.addEventListener('surface-reviewed'"));
+ const exporter=template.slice(template.indexOf('function exportGroups('),template.indexOf("byId('wfLoadDemo').addEventListener"));
+ vm.runInContext(presentation+'\n'+exporter+'\nupdateOMPresentation();exportGroups();',context);
+ assert.ok(table.innerHTML.indexOf('<td>2000</td>')<table.innerHTML.indexOf('<td>4000</td>'));assert.ok(table.innerHTML.indexOf('<td>4000</td>')<table.innerHTML.indexOf('<td>6000</td>'));
+ assert.deepEqual(Array.from(captured.slice(1),row=>row[captured[0].indexOf('rpm')]),[2000,4000,6000]);
+});
+
+test('an automatic OM pass reaches combined results without inventing user confirmation',()=>{
+ const s=sample('automatic');setOM(s,'pass',{label:'OM 자동 기준 충족',reason:'수치 기준 이내 · 자동 판정',decisionSource:'AUTOMATIC',user_confirmation:'UNREVIEWED'});
+ const a=P.assessCombined(s,rule);assert.equal(a.state,'pass');assert.equal(a.om.user_confirmation,'UNREVIEWED');
+ assert.equal(P.getConditionAssessments([s],rule)[0].candidate,true);
+ const html=P.render([s],rule);assert.match(html,/OM 자동 기준 충족/);assert.doesNotMatch(html,/OM 표시는 사용자 확인 후 충족 반영/);
+});
 
 test('combined decision requires both checks; a known failure remains decisive',()=>{
  for(const thickness of ['pass','pending','fail'])for(const surface of ['pass','pending','fail']){
@@ -56,8 +98,8 @@ test('particle measurements and density failure reason survive combined assessme
 test('comparison displays both OM limits and high-density failure despite zero large area',()=>{
  const s=sample('particles-ui');setOM(s,'fail',{areaPercent:0,particleCount:40,smallParticleCount:40,particleDensityPer10k:20,reason:'검출 영역 밀도 상한 초과'});
  const html=P.render([s],rule);
- assert.match(html,/OM 큰 영역 면적 ≤ 5\.0% · 검출 영역 밀도 ≤ 10\.0개\/1만 px/);
- assert.match(html,/큰 영역 면적 0\.00% \/ 상한 5\.0%/);assert.match(html,/검출 연결 영역 40개/);
+ assert.match(html,/OM 얼룩 의심 면적 ≤ 5\.0% · 검출 영역 밀도 ≤ 10\.0개\/1만 px/);
+ assert.match(html,/얼룩 의심 면적 0\.00% \/ 상한 5\.0%/);assert.match(html,/검출 연결 영역 40개/);
  assert.match(html,/밀도 20\.00개\/1만 px \/ 상한 10\.0/);assert.match(html,/검출 영역 밀도 상한 초과/);
  assert.match(html,/data-combined-state="fail"/);assert.match(html,/큰 영역도 포함/);assert.match(html,/실제 파티클이나 결함으로 확정된 것은 아닙니다/);
 });
@@ -114,7 +156,7 @@ test('comparison rendering retains unlinked samples and orders pass, pending, fa
  const pass=sample('row-pass'),pending=sample('row-pending',[15,15],{image_id:null}),fail=sample('row-fail',[18,18]);setOM(pass,'pass');setOM(fail,'fail');
  const html=P.render([fail,pending,pass],rule),body=html.slice(html.indexOf('<tbody>'),html.indexOf('</tbody>'));
  assert.ok(body.indexOf('row-pass')<body.indexOf('row-pending'));assert.ok(body.indexOf('row-pending')<body.indexOf('row-fail'));
- assert.match(body,/OM 미연결/);assert.match(html,/초기 운영 기준 · 검증 대기/);
+ assert.match(body,/OM 미연결/);assert.match(html,/초기 운영 기준 · OM 자동 판정 · 예외는 사용자 검토/);
  const card=html.match(/<div class="intake-candidate-samples">([\s\S]*?)<\/div>/)?.[1]||'';
  assert.match(card,/row-pass/);assert.doesNotMatch(card,/row-pending|row-fail/);
 });
