@@ -307,6 +307,20 @@ byId('wfApplyFiles').addEventListener('click',async()=>{const m=byId('wfMetaFile
 byId('wfEditValues').addEventListener('input',()=>{const s=selectedRecord();if(!s||s.data_source!=='SYNTHETIC')return;s.editText=byId('wfEditValues').value;try{const v=Maths.parseThickness(s.editText);s.stats=Maths.thickness(v);s.points=v.map((value,i)=>({position:'P'+String(i+1).padStart(2,'0'),value}));s.editError='';}catch(e){s.stats=null;s.points=[];s.editError=e.message;}render();});
 byId('wfEditValues').addEventListener('blur',render);document.addEventListener('om-metrics-updated',preview);
 
+// Patch only thickness fields; image records, OM reviews and recipe metadata stay intact.
+function setThicknessData(samples){
+ const patches=new Map(samples.map(sample=>[sample.id,sample]));
+ for(const sample of joined){
+  const patch=patches.get(sample.id);if(!patch)continue;
+  sample.points=structuredClone(patch.points||[]);sample.stats=patch.stats?structuredClone(patch.stats):null;
+  delete sample.editText;delete sample.editError;
+  if(Object.prototype.hasOwnProperty.call(patch,'editText'))sample.editText=patch.editText;
+  if(Object.prototype.hasOwnProperty.call(patch,'editError'))sample.editError=patch.editError;
+ }
+ if(patches.has(selectedSample)){const current=selectedRecord();byId('wfEditValues').value=current.editText??current.points.map(point=>point.value).join(',');}
+ render();
+}
+
 function exportCoreState(){
  const csv=window.Hfo2Intake.csvFor(joined);
  return {version:1,images:records.map(r=>({...r})),metadataCsv:csv.meta,thicknessCsv:csv.thickness,
@@ -356,6 +370,7 @@ window.Hfo2Bridge={
  listImages:()=>records.map(r=>({...r})),getImage:id=>records.find(r=>r.id===id),getPixels:id=>pixels.get(id),
  getSelectedImageId:()=>selected,getSelectedSampleId:()=>selectedSample,
  selectImage:id=>{if(!records.some(r=>r.id===id))throw new Error('이미지를 찾을 수 없습니다.');byId('rpmFilter').value='all';byId('magnificationFilter').value='all';selectImage(id);},
+ setThicknessData,
  getROI:()=>roiValid?({...roi}):null,getSamples:()=>structuredClone(joined),getRule:currentRule,
  applyCSVs:(meta,thick,mn='직접 등록',tn='직접 등록')=>setData(meta,thick,mn,tn),loadDemo,
  clearSamples:()=>{combinedScreening=false;joined=[];joinWarnings=[];selectedSample='';byId('wfOnlyReview').checked=false;byId('wfInputStatus').textContent='샘플을 등록한 뒤 전체 분석을 실행하세요.';byId('wfInputWarning').textContent='';byId('wfInputWarning').classList.add('hidden');errorBox('wfInputError','');render();},
@@ -376,7 +391,7 @@ loadDemo();
 <script id="app-shell">
 (function(){'use strict';
 const el=id=>document.getElementById(id), shell=document.createElement('div');shell.className='app-shell';
-shell.innerHTML=`<aside class="app-sidebar"><div class="app-brand"><span class="app-mark">Hf</span><div>HfO₂ Lab<small>FILM ANALYSIS</small></div></div><div class="app-project"><small>PROJECT</small><strong>HfO₂ 박막 분석</strong></div><nav class="app-nav" aria-label="분석 화면"><button data-page="intake"><span class="nav-icon">＋</span>등록</button><button data-page="data"><span class="nav-icon">▤</span>CSV 입력</button><button data-page="samples" aria-current="page"><span class="nav-icon">◫</span>두께 분석</button><button data-page="om"><span class="nav-icon">▧</span>OM 분석</button><button data-page="compare"><span class="nav-icon">▥</span>조건 비교</button></nav><div class="app-side-foot"><span class="ui-online-dot"></span> 오프라인 분석<br><span>HfO₂ Lab · v0.5.0</span></div></aside><div class="app-main"><header class="app-header"><div><h1 id="appPageTitle">시편분석</h1><p id="appPageSubtitle">평균 · CV · 판정</p></div><div class="app-header-right"><span class="app-source-status" id="appDatasetStatus"></span><button id="appSourceInfo" type="button">자료 정보</button><div id="appPrintSlot"></div></div></header><main class="app-workspace"><section class="app-page" id="page-intake" hidden></section><section class="app-page" id="page-data" hidden><div class="app-page-title"><div><h2>CSV 일괄 등록</h2><p>공정조건 · 위치별 두께 · Sample ID 연결</p></div><span class="pill">CSV · UTF-8</span></div><div class="app-card" id="appDataCard"><div class="app-connect-strip"><strong>공정조건 · 이미지 ID</strong><b>→</b><span>Sample ID 일치</span><b>←</b><strong>위치별 두께</strong></div><div class="app-input-format-note"><strong>CSV 양식은 이 화면에 첨부</strong><p>공정조건 CSV와 두께 CSV를 각각 작성한 뒤 아래 ‘CSV 파일 연결’에서 첨부하세요. 등록 화면의 측정 엑셀은 ‘공정조건’·‘두께’ 시트가 있는 .xlsx 파일을 사용합니다.</p><button type="button" data-goto="intake">엑셀 등록으로</button></div></div><div class="app-card" id="appMethodCard"><h3>분석 안내</h3><p class="small quiet">실제 OM 이미지의 원본 조건은 별도로 보존됩니다. 입력한 공정조건은 원본 이미지 정보를 덮어쓰지 않습니다.</p></div></section><section class="app-page" id="page-samples"><div class="app-page-title"><div><h2 id="appSamplesTitle">두께 분석</h2><p id="appSamplesSubtitle">평균 두께 · 위치별 편차</p></div><span class="pill" id="appSampleCount"></span></div></section><section class="app-page" id="page-om" hidden><div class="app-page-title"><div><h2>OM 분석</h2><p>기준 영역 확인 · 광학적 차이 검토</p></div><span class="pill">원본 이미지 · ROI 분석</span></div></section><section class="app-page" id="page-compare" hidden><div class="app-page-title"><div><h2>조건 비교</h2><p>농도 · 코팅 · 회전수 · 시간 · 어닐링</p></div><button id="appCompareExport">조건별 비교 CSV</button></div><div class="app-card" id="appCompareCard"></div></section></main></div>`;
+shell.innerHTML=`<aside class="app-sidebar"><div class="app-brand"><span class="app-mark">Hf</span><div>HfO₂ Lab<small>FILM ANALYSIS</small></div></div><div class="app-project"><small>PROJECT</small><strong>HfO₂ 박막 분석</strong></div><nav class="app-nav" aria-label="분석 화면"><button data-page="intake"><span class="nav-icon">＋</span>등록</button><button data-page="data"><span class="nav-icon">▤</span>CSV 입력</button><button data-page="samples" aria-current="page"><span class="nav-icon">◫</span>두께 분석</button><button data-page="om"><span class="nav-icon">▧</span>OM 분석</button><button data-page="compare"><span class="nav-icon">▥</span>조건 비교</button></nav><div class="app-side-foot"><span class="ui-online-dot"></span> 오프라인 분석<br><span>HfO₂ Lab · v0.5.1</span></div></aside><div class="app-main"><header class="app-header"><div><h1 id="appPageTitle">시편분석</h1><p id="appPageSubtitle">평균 · CV · 판정</p></div><div class="app-header-right"><span class="app-source-status" id="appDatasetStatus"></span><button id="appSourceInfo" type="button">자료 정보</button><div id="appPrintSlot"></div></div></header><main class="app-workspace"><section class="app-page" id="page-intake" hidden></section><section class="app-page" id="page-data" hidden><div class="app-page-title"><div><h2>CSV 일괄 등록</h2><p>공정조건 · 위치별 두께 · Sample ID 연결</p></div><span class="pill">CSV · UTF-8</span></div><div class="app-card" id="appDataCard"><div class="app-connect-strip"><strong>공정조건 · 이미지 ID</strong><b>→</b><span>Sample ID 일치</span><b>←</b><strong>위치별 두께</strong></div><div class="app-input-format-note"><strong>CSV 양식은 이 화면에 첨부</strong><p>공정조건 CSV와 두께 CSV를 각각 작성한 뒤 아래 ‘CSV 파일 연결’에서 첨부하세요. 등록 화면의 측정 엑셀은 ‘공정조건’·‘두께’ 시트가 있는 .xlsx 파일을 사용합니다.</p><button type="button" data-goto="intake">엑셀 등록으로</button></div></div><div class="app-card" id="appMethodCard"><h3>분석 안내</h3><p class="small quiet">실제 OM 이미지의 원본 조건은 별도로 보존됩니다. 입력한 공정조건은 원본 이미지 정보를 덮어쓰지 않습니다.</p></div></section><section class="app-page" id="page-samples"><div class="app-page-title"><div><h2 id="appSamplesTitle">두께 분석</h2><p id="appSamplesSubtitle">평균 두께 · 위치별 편차</p></div><span class="pill" id="appSampleCount"></span></div></section><section class="app-page" id="page-om" hidden><div class="app-page-title"><div><h2>OM 분석</h2><p>기준 영역 확인 · 광학적 차이 검토</p></div><span class="pill">원본 이미지 · ROI 분석</span></div></section><section class="app-page" id="page-compare" hidden><div class="app-page-title"><div><h2>조건 비교</h2><p>농도 · 코팅 · 회전수 · 시간 · 어닐링</p></div><button id="appCompareExport">조건별 비교 CSV</button></div><div class="app-card" id="appCompareCard"></div></section></main></div>`;
 document.body.appendChild(shell);
 const original=document.querySelector('.wrap'), roleDetails=el('wfRoot').querySelector('.wf-panel > details');
 el('appDataCard').append(el('wfSource'),el('wfInputs'));if(roleDetails)el('appMethodCard').append(roleDetails);
@@ -413,6 +428,7 @@ window.Hfo2Bridge.navigate=navigate;document.addEventListener('wf-rendered',()=>
 <script id="xlsx-import">__XLSX_IMPORT_JS__</script>
 <script id="autosave-module">__AUTOSAVE_JS__</script>
 <script id="quick-import">window.HFO2_SAMPLE_WORKBOOK_BASE64="__SAMPLE_XLSX_BASE64__";__QUICK_IMPORT_JS__</script>
+<script id="condition-trends">__CONDITION_TRENDS_JS__</script>
 <script id="image-management">__IMAGE_MANAGEMENT_JS__</script>
 </body>
 </html>

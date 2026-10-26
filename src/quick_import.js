@@ -128,7 +128,7 @@ const photoDetails=document.createElement('details');photoDetails.className='qui
 function queueSignature(samples){return JSON.stringify(I.rowsFor(samples));}
 function showError(message){$('quickError').textContent=message||'';$('quickError').hidden=!message;}
 function showStatus(message){$('quickStatus').textContent=message||'';}
-function setBusy(value){busy=value;panel.setAttribute('aria-busy',String(value));manualDetails.inert=value;for(const id of ['quickOmFiles','quickExcelFile','quickExcelMode','quickSampleWorkbook','quickOpenCSV'])$(id).disabled=value;refresh();}
+function setBusy(value){busy=value;panel.setAttribute('aria-busy',String(value));manualDetails.inert=value;for(const id of ['quickOmFiles','quickExcelFile','quickExcelMode','quickSampleWorkbook','quickOpenCSV'])$(id).disabled=value;refresh();document.dispatchEvent(new CustomEvent('hfo2-import-busy',{detail:{busy}}));}
 function rawForQueue(samples){return samples.map(sample=>({...sample,...(hints.get(sample.id)||{})}));}
 function setResolvedQueue(result){applyingQueue=true;try{I.setQueue(result.samples);lastSignature=queueSignature(I.getQueue());latestMatches=result.matches;}finally{applyingQueue=false;}refresh();}
 function resolveCurrentQueue(){const samples=I.getQueue(),result=resolveMappings(rawForQueue(samples),B.listImages(),manual);if(queueSignature(result.samples)!==queueSignature(samples))setResolvedQueue(result);else{latestMatches=result.matches;refresh();}return result;}

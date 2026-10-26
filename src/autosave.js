@@ -120,7 +120,7 @@ async function write(value){
 async function savePrevious(value){const db=await database();return new Promise((resolve,reject)=>{const tx=db.transaction('snapshots','readwrite');tx.objectStore('snapshots').put(value,'previous');tx.oncomplete=()=>resolve();tx.onerror=()=>reject(tx.error||new Error('이전 상태 보관에 실패했습니다.'));tx.onabort=tx.onerror;});}
 function capture(){
  if(!B.exportState||!I.exportState||!S.exportState)throw new Error('전체 저장 기능을 불러오지 못했습니다. 최신 프로그램을 다시 열어 주세요.');
- return {schema:1,version:'0.5.0',savedAt:new Date().toISOString(),core:B.exportState(),intake:I.exportState(),surface:S.exportState()};
+ return {schema:1,version:'0.5.1',savedAt:new Date().toISOString(),core:B.exportState(),intake:I.exportState(),surface:S.exportState()};
 }
 async function apply(value){
  validateSnapshot(value);if(!B.importState||!I.importState||!S.importState)throw new Error('복원 기능을 불러오지 못했습니다. 최신 프로그램을 다시 열어 주세요.');
