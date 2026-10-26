@@ -1,0 +1,9 @@
+# Local experimental material and personal backups are not deployment assets.
+original_images/
+source_documents/
+HfO2_full_backup_*.json
+node_modules/
+__pycache__/
+*.pyc
+*.log
+.DS_Store
