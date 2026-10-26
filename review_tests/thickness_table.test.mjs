@@ -49,9 +49,9 @@ test('OM review updates cannot recolor the thickness row or add an overall verdi
 test('explicit screening still filters OM failures and displays combined status',()=>{
  const t=setup(),omFail=t.sample('om-fail'),pending=t.sample('om-pending'),meanFail=t.sample('mean-fail',[18,18]),pass=t.sample('all-pass');
  t.context.joined=[omFail,pending,meanFail,pass];t.setOM(omFail,'fail');t.setOM(pending,'pending');t.setOM(meanFail,'pass');t.setOM(pass,'pass');t.context.combinedScreening=true;t.node('wfOnlyReview').checked=true;t.context.render();
- assert.deepEqual(t.rows().map(r=>r.dataset.wfId),['om-fail','mean-fail']);assert.ok(t.rows().every(r=>r.dataset.combinedState==='fail'));assert.match(t.html(),/data-om-assessment/);assert.match(t.html(),/data-combined-assessment/);assert.equal(t.node('appSamplesTitle').textContent,'시편 선별');assert.equal(t.node('wfAssessmentHeading').textContent,'두께 · OM 판정');
+ assert.deepEqual(t.rows().map(r=>r.dataset.wfId),['om-fail','mean-fail']);assert.ok(t.rows().every(r=>r.dataset.combinedState==='fail'));assert.match(t.html(),/data-om-assessment/);assert.match(t.html(),/data-combined-assessment/);assert.equal(t.node('appSamplesTitle').textContent,'Sample Screening');assert.equal(t.node('wfAssessmentHeading').textContent,'두께 · OM 판정');
 });
 test('returning from screening restores thickness status despite an OM-only failure',()=>{
  const t=setup(),s=t.sample('mode-change');t.context.joined=[s];t.setOM(s,'fail');t.context.combinedScreening=true;t.context.render();assert.ok(t.rows()[0].classList.contains('wf-row-fail'));
- t.context.combinedScreening=false;t.context.render();assert.ok(t.rows()[0].classList.contains('wf-row-pass'));assert.doesNotMatch(t.html(),/data-om-assessment|data-combined-assessment/);assert.equal(t.node('appSamplesTitle').textContent,'두께 분석');
+ t.context.combinedScreening=false;t.context.render();assert.ok(t.rows()[0].classList.contains('wf-row-pass'));assert.doesNotMatch(t.html(),/data-om-assessment|data-combined-assessment/);assert.equal(t.node('appSamplesTitle').textContent,'Thickness Analysis');
 });

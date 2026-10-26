@@ -16,7 +16,7 @@ function setup(){
 test('five distinct workflow destinations retain the compare interception key',()=>{
  const nav=source.match(/<nav class="intake-steps"[\s\S]*?<\/nav>/)[0];
  assert.deepEqual([...nav.matchAll(/data-intake-step="([^"]+)"/g)].map(m=>m[1]),['register','analyze','om','screen','compare']);
- for(const label of ['01 등록','02 두께 분석','03 OM 분석','04 선별','05 비교'])assert.ok(nav.includes(label));
+ for(const label of ['01 Registration','02 Thickness','03 OM Analysis','04 Screening','05 Comparison'])assert.ok(nav.includes(label));
 });
 test('OM and thickness pages have separate active steps, including empty and saved page navigation',()=>{
  const t=setup();for(const [page,active] of [['intake','register'],['data','register'],['samples','analyze'],['om','om'],['compare','compare']]){t.context.syncStep(page);assert.deepEqual(t.active(),[active]);}
