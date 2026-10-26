@@ -9,6 +9,7 @@ const FIELDS=['concentration_M','coats','rpm','spin_time_s','anneal_temp_C','ann
 const FORM_FIELDS={sample_id:'intakeSampleId',data_source:'intakeSource',concentration_M:'intakeConcentration',coats:'intakeCoats',rpm:'intakeRpm',spin_time_s:'intakeSpinTime',anneal_temp_C:'intakeAnnealTemp',anneal_time_min:'intakeAnnealTime',image_id:'intakeImage'};
 let queue=[],undoQueue=null,dirty=false,internal=false,busy=false,previewUrl=null,activePage='intake',pendingFileDraft=false;
 let thicknessUndo=null,thicknessMessage='';
+let sampleUndo=null,sampleMessage='';
 const cell=v=>{const s=String(v??'');return /[",\r\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s;};
 function rowsFor(samples){return {meta:[MH,...samples.map(s=>[s.id,s.image_id,...FIELDS.map(f=>s[f]),s.data_source])],thickness:[TH,...samples.flatMap(s=>(s.points||[]).map(p=>[s.id,p.position,p.value,s.data_source]))]};}
 function csvFor(samples){const r=rowsFor(samples),csv=a=>a.map(row=>row.map(cell).join(',')).join('\n')+'\n';return {meta:csv(r.meta),thickness:csv(r.thickness)};}
@@ -30,6 +31,7 @@ function thicknessDeletionScope(scope){
  return {ids,analyzed,registered:summarize(queue),results:summarize(analyzed)};
 }
 function updateThicknessControls(){
+ updateSampleControls();
  const controls=$('intakeThicknessTools');if(!controls)return;
  if(thicknessUndo&&thicknessUndo.after!==thicknessSignature()){thicknessUndo=null;thicknessMessage='';}
  const selected=B.getSelectedSampleId?.(),one=thicknessDeletionScope('selected'),all=thicknessDeletionScope('all'),blocked=thicknessActionBusy();
@@ -61,6 +63,42 @@ function undoThicknessDeletion(){
  internal=true;try{B.setThicknessData(saved.analyzed);}finally{internal=false;}
  thicknessMessage='직전 두께 삭제 복구 완료';
  renderQueue();renderAnalysis();emitIntakeChanged();return true;
+}
+// A sample can exist without thickness values. Delete its identity from both stores.
+function sampleDeletionScope(scope){
+ if(scope!=='selected'&&scope!=='all')throw new Error('시편 삭제 범위를 확인하세요.');
+ const analyzed=B.getSamples(),selected=B.getSelectedSampleId?.();
+ return {analyzed,ids:[...new Set([...queue,...analyzed].filter(s=>scope==='all'||s.id===selected).map(s=>s.id))]};
+}
+function updateSampleControls(){
+ if(!$('intakeSampleTools'))return;
+ if(sampleUndo&&sampleUndo.after!==thicknessSignature()){sampleUndo=null;sampleMessage='';}
+ const blocked=thicknessActionBusy(),selected=B.getSelectedSampleId?.();
+ $('intakeDeleteSelectedSample').disabled=blocked||!sampleDeletionScope('selected').ids.length;
+ $('intakeDeleteAllSamples').disabled=blocked||!sampleDeletionScope('all').ids.length;
+ $('intakeUndoSamples').disabled=blocked||!sampleUndo;
+ $('intakeSampleSelection').textContent=selected?'선택 시편 · '+selected:'표에서 시편 선택';
+ $('intakeSampleStatus').textContent=sampleMessage;
+}
+function deleteSamples(scope){
+ if(thicknessActionBusy()){updateSampleControls();return false;}
+ const target=sampleDeletionScope(scope);if(!target.ids.length)return false;
+ const heading=scope==='selected'?'선택 시편 '+target.ids[0]:'전체 '+target.ids.length+'개 시편';
+ if(!window.confirm(heading+'을 삭제할까요?\n\n등록 목록, 공정조건, 두께값과 분석·비교 결과에서 제거합니다.\nOM 사진과 사진별 검토 결과는 유지됩니다.\n새로고침하거나 시편 데이터를 변경하기 전에는 시편 삭제 복구가 가능합니다.'))return false;
+ const before={queue:clone(queue),analyzed:target.analyzed,dirty};
+ sampleUndo=null;thicknessUndo=null;thicknessMessage='';undoQueue=null;
+ queue=queue.filter(s=>!target.ids.includes(s.id));
+ if(!queue.length&&!target.analyzed.some(s=>!target.ids.includes(s.id)))dirty=false;
+ internal=true;try{B.setSampleRecords(target.analyzed.filter(s=>!target.ids.includes(s.id)));}finally{internal=false;}
+ sampleUndo={...before,after:thicknessSignature()};sampleMessage=heading+' 삭제 완료 · OM 사진 유지';
+ renderQueue();renderAnalysis();emitIntakeChanged();return true;
+}
+function undoSampleDeletion(){
+ if(thicknessActionBusy()){updateSampleControls();return false;}
+ if(!sampleUndo||sampleUndo.after!==thicknessSignature()){sampleUndo=null;updateSampleControls();return false;}
+ const saved=sampleUndo;sampleUndo=null;queue=clone(saved.queue);dirty=saved.dirty;
+ internal=true;try{B.setSampleRecords(saved.analyzed);}finally{internal=false;}
+ sampleMessage='직전 시편 삭제 복구 완료';renderQueue();renderAnalysis();emitIntakeChanged();return true;
 }
 // The comparison editor keeps an unapplied draft separate from the authoritative rules.
 const CRITERIA_FIELDS=[['target','intakeCriteriaTarget','목표 평균 두께 (nm)','0.001'],['tolerance','intakeCriteriaTolerance','평균 허용차 (±nm)','0'],['cvLimit','intakeCriteriaCV','두께 CV 상한 (%)','0'],['areaLimit','intakeCriteriaArea','OM 얼룩 의심 면적 상한 (%)','0'],['particleDensityLimit','intakeCriteriaDensity','검출 영역 밀도 상한 (개/1만 px)','0']];
@@ -126,7 +164,7 @@ workflowSteps.id='appWorkflowSteps';
 const workspace=document.querySelector('.app-workspace');
 workspace.insertBefore(workflowSteps,workspace.firstChild);
 const summary=document.createElement('section');summary.id='intakeAnalysisSummary';summary.className='intake-summary';
-summary.innerHTML='<div id="intakeSummaryBody"></div><div id="intakeThicknessTools" class="intake-thickness-tools"><strong>두께 데이터 관리</strong><div id="intakeThicknessSelection" class="intake-thickness-selection">표에서 시편 선택</div><div class="intake-thickness-actions"><button type="button" id="intakeDeleteSelectedThickness" data-delete-thickness="selected" disabled>선택 두께 삭제</button><button type="button" id="intakeDeleteAllThickness" data-delete-thickness="all" disabled>전체 두께 삭제</button><button type="button" id="intakeUndoThickness" disabled>삭제 복구</button></div><p>공정조건 · OM 사진 · 검토 결과 유지</p><p id="intakeThicknessStatus" role="status" aria-live="polite"></p></div><div class="intake-links"><button data-intake-navigate="intake">샘플 등록</button><button id="intakeShowReview">기준 초과 필터</button><button id="intakeOpenSurface" data-intake-navigate="om">OM 검토</button></div><p id="intakeSummaryNotice" class="intake-warning" role="status" hidden></p>';
+summary.innerHTML='<div id="intakeSummaryBody"></div><div id="intakeSampleTools" class="intake-thickness-tools"><strong>시편 관리</strong><div id="intakeSampleSelection" class="intake-thickness-selection">표에서 시편 선택</div><div class="intake-thickness-actions"><button type="button" id="intakeDeleteSelectedSample" disabled>선택 시편 삭제</button><button type="button" id="intakeDeleteAllSamples" disabled>전체 시편 삭제</button><button type="button" id="intakeUndoSamples" disabled>시편 삭제 복구</button></div><p>등록 목록 · 공정조건 · 두께 · 분석 결과 삭제 / OM 사진 유지</p><p id="intakeSampleStatus" role="status" aria-live="polite"></p></div><div id="intakeThicknessTools" class="intake-thickness-tools"><strong>두께값만 삭제</strong><div id="intakeThicknessSelection" class="intake-thickness-selection">표에서 시편 선택</div><div class="intake-thickness-actions"><button type="button" id="intakeDeleteSelectedThickness" data-delete-thickness="selected" disabled>선택 두께 삭제</button><button type="button" id="intakeDeleteAllThickness" data-delete-thickness="all" disabled>전체 두께 삭제</button><button type="button" id="intakeUndoThickness" disabled>삭제 복구</button></div><p>시편 등록 · 공정조건 · OM 사진 유지 · 두께가 없으면 판정 대기로 표시</p><p id="intakeThicknessStatus" role="status" aria-live="polite"></p></div><div class="intake-links"><button data-intake-navigate="intake">샘플 등록</button><button id="intakeShowReview">기준 초과 필터</button><button id="intakeOpenSurface" data-intake-navigate="om">OM 검토</button></div><p id="intakeSummaryNotice" class="intake-warning" role="status" hidden></p>';
 $('page-samples').insertBefore(summary,$('wfScreen'));
 const summaryBody=$('intakeSummaryBody');
 const pendingSamples=document.createElement('div');pendingSamples.id='intakePendingSamples';pendingSamples.className='intake-warning';pendingSamples.style.marginBottom='16px';pendingSamples.hidden=true;$('page-samples').insertBefore(pendingSamples,summary);
@@ -160,7 +198,7 @@ function importState(payload){
  const positions=form.positions.map(p=>{if(!p||typeof p.position!=='string'||p.position.length>120||typeof p.thickness_nm!=='string'||p.thickness_nm.length>1000)throw new Error('위치별 두께 입력 중 저장값을 확인하세요.');return {position:p.position,thickness_nm:p.thickness_nm};});
  if(nextFields.image_id&&!B.getImage(nextFields.image_id)){nextFields.image_id='';warnings.push('입력 중 OM 이미지는 다시 선택');}
  if(form.file_pending)warnings.push('미등록 사진은 다시 선택');
- resetCriteriaDraft();thicknessUndo=null;thicknessMessage='';queue=nextQueue;undoQueue=nextUndo;dirty=payload.dirty;pendingFileDraft=form.file_pending;
+ resetCriteriaDraft();sampleUndo=null;sampleMessage='';thicknessUndo=null;thicknessMessage='';queue=nextQueue;undoQueue=nextUndo;dirty=payload.dirty;pendingFileDraft=form.file_pending;
  $('intakeImageFile').value='';refreshImages();
  for(const [key,id]of Object.entries(FORM_FIELDS))$(id).value=nextFields[key];
  $('intakePositions').replaceChildren();positions.forEach(p=>appendPosition(p.position,p.thickness_nm));updatePositionCount();
@@ -267,6 +305,9 @@ $('intakeClearQueue').addEventListener('click',()=>{setQueue([]);notify('등록 
 $('intakeDeleteSelectedThickness').addEventListener('click',()=>deleteThickness('selected'));
 $('intakeDeleteAllThickness').addEventListener('click',()=>deleteThickness('all'));
 $('intakeUndoThickness').addEventListener('click',undoThicknessDeletion);
+$('intakeDeleteSelectedSample').addEventListener('click',()=>deleteSamples('selected'));
+$('intakeDeleteAllSamples').addEventListener('click',()=>deleteSamples('all'));
+$('intakeUndoSamples').addEventListener('click',undoSampleDeletion);
 $('intakeLoadBuiltIn').addEventListener('click',()=>{try{loadBuiltIn();}catch(e){error(e.message);}});$('intakeRun').addEventListener('click',()=>{try{error('');runAnalysis();}catch(e){error(e.message);}});
 $('intakeExportMeta').addEventListener('click',()=>{try{exportRows('meta');}catch(e){error(e.message);}});$('intakeExportThickness').addEventListener('click',()=>{try{exportRows('thickness');}catch(e){error(e.message);}});
 $('intakeOpenCsv').addEventListener('click',()=>{B.navigate('data');const d=document.querySelector('#wfInputs details');if(d)d.open=true;});$('intakeChangeRule').addEventListener('click',()=>{B.navigate('samples');$('wfTarget').focus();});
@@ -275,6 +316,6 @@ candidates.addEventListener('input',event=>{if(event.target.matches('[data-crite
 candidates.addEventListener('click',event=>{if(event.target.closest('#intakeCriteriaApply')){try{applyCriteria(captureCriteriaDraft());}catch(e){setCriteriaFeedback(e.message+' · 기존 기준 유지','error');}}else if(event.target.closest('#intakeCriteriaCancel')){resetCriteriaDraft();renderAnalysis();}});
 candidates.addEventListener('keydown',event=>{if(event.key==='Enter'&&event.target.matches('[data-criteria-field]')){event.preventDefault();$('intakeCriteriaApply').click();}});
 document.addEventListener('wf-rendered',()=>{if(!internal&&!dirty){queue=B.getSamples();renderQueue();}updateRule();renderAnalysis();syncStep();});document.addEventListener('om-metrics-updated',refreshImages);document.addEventListener('hfo2-image-added',refreshImages);document.addEventListener('surface-reviewed',renderAnalysis);
-window.Hfo2Intake={deleteThickness,undoThicknessDeletion,getQueue:()=>clone(queue),setQueue,stageSample,runAnalysis,loadBuiltIn,exportRows,exportState,importState,csvFor,rowsFor,grade,criterionLines,assessThickness,getThicknessAssessments,assessCombined,getSampleAssessments,getConditionAssessments,rankConditionAssessments,renderAnalysis,isPending:()=>dirty};
+window.Hfo2Intake={deleteSamples,undoSampleDeletion,deleteThickness,undoThicknessDeletion,getQueue:()=>clone(queue),setQueue,stageSample,runAnalysis,loadBuiltIn,exportRows,exportState,importState,csvFor,rowsFor,grade,criterionLines,assessThickness,getThicknessAssessments,assessCombined,getSampleAssessments,getConditionAssessments,rankConditionAssessments,renderAnalysis,isPending:()=>dirty};
 resetPositions();refreshImages();internal=true;try{B.clearSamples();}finally{internal=false;}queue=[];dirty=false;renderQueue();renderAnalysis();B.navigate('intake');
 })();
